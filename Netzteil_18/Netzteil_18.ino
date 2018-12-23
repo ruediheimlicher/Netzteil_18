@@ -248,8 +248,6 @@ void setup()
    
    
 }
-
-
 ///
 /// @brief      Loop
 /// @details	Call blink
