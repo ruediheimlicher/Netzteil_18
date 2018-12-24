@@ -142,84 +142,114 @@ int16_t get_analogresult(uint8_t channel)
 	return(analog_result[channel]);
 }
 
-int16_t get_targetvalue(uint8_t channel) 
+int16_t get_targetvalue(uint8_t channel) //
 {
    return target_val[channel];
 }
 
-// the control loop changes the dac:
-static void  control_loop()
+void set_targetvalue(uint8_t channel, uint16_t val)
 {
-	int16_t tmp;
-	tmp=target_val[0] - analog_result[0]; // current diff
-	if (tmp <0) // current too high
-   {
-		// ** current control:
-		//
-		// stay in current control if we are
-		// close to the target. We never regulate
-		// the difference down to zero otherweise
-		// we would suddenly hop to voltage control
-		// and then back to current control. Permanent
-		// hopping would lead to oscillation and current
-		// spikes.
-		if (tmp>-2) tmp=0;
-		currentcontrol=10; // I control
-		if (analog_result[1]>target_val[1])
-      {
-			// oh, voltage too high, get out of current control:
-			tmp=-20;
-			currentcontrol=0; // U control
-		}
-	}
-   else
-   {
-		// ** voltage control:
-		//
-		// if we are in current control then we can only go
-		// down (tmp is negative). To increase the current
-		// we come here to voltage control. We must slowly
-		// count up.
-		tmp=1+ target_val[1]  - analog_result[1]; // voltage diff
-		if (currentcontrol)
-      {
-			currentcontrol--;
-			// do not go up immediately after we came out of current control:
-			if (tmp>0) tmp=0;
-		}
-	}
-   
-	if (tmp> -3 && tmp<4)
-   { // avoid LSB bouncing if we are close
-		tmp=0;
-	}
-	if (tmp==0) return; // nothing to change
-	// put a cap on increase
-	if (tmp>1)
-   {
-		tmp=1;
-	}
-	// put a cap on decrease
-	if (tmp<-200)
-   {
-		tmp=-20;
-	}
-   else if (tmp<-1)
-   {
-		tmp=-1;
-	}
-	dac_val+=tmp;
-	if (dac_val>0x1000)
-   {
-		dac_val=0x1000; //max, 12bit
-	}
-	if (dac_val<TRANSISTOR_THRESHOLD){  // the output is zero below 800 due to transistor threshold
-		dac_val=TRANSISTOR_THRESHOLD;
-	}
-   
-   analogWrite(A14, (int)dac_val);
+   target_val[channel] = val;
 }
 
+void inc_targetvalue(uint8_t channel, uint16_t inc) // targetvalue incrementieren um inc
+{
+   if (target_val[channel] < (0xFDD))
+   {
+      target_val[channel] += inc;
+   }
+}
+
+void dec_targetvalue(uint8_t channel, uint16_t dec) // targetvalue decrementieren um dec
+{
+   if (target_val[channel] > (0x0F))
+   {
+      target_val[channel] -= dec;
+   }
+}
+     
+     // the control loop changes the dac:
+
+static void  control_loop()
+{
+ int16_t tmp;
+ tmp=target_val[0] - analog_result[0]; // current diff
+ if (tmp <0) // current too high
+ {
+    // ** current control:
+    //
+    // stay in current control if we are
+    // close to the target. We never regulate
+    // the difference down to zero otherweise
+    // we would suddenly hop to voltage control
+    // and then back to current control. Permanent
+    // hopping would lead to oscillation and current
+    // spikes.
+    if (tmp>-2) 
+    {
+       tmp=0;
+    }
+    
+    currentcontrol=10; // I control
+    if (analog_result[1] > target_val[1])
+    {
+       // oh, voltage too high, get out of current control:
+       tmp = -20;
+       currentcontrol=0; // U control
+    }
+ }
+ else
+ {
+    // ** voltage control:
+    //
+    // if we are in current control then we can only go
+    // down (tmp is negative). To increase the current
+    // we come here to voltage control. We must slowly
+    // count up.
+    tmp=1+ target_val[1]  - analog_result[1]; // voltage diff
+    if (currentcontrol)
+    {
+       currentcontrol--;
+       // do not go up immediately after we came out of current control:
+       if (tmp>0) tmp=0;
+    }
+ }
+ 
+ if (tmp> -3 && tmp<4)
+ { // avoid LSB bouncing if we are close
+    tmp=0;
+ }
+ if (tmp==0) 
+ {
+    return; // nothing to change
+ }
+ // put a cap on increase
+ if (tmp>1)
+ {
+    tmp=1;
+ }
+ // put a cap on decrease
+ if (tmp<-200)
+ {
+    tmp=-20;
+ }
+ else if (tmp<-1)
+ {
+    tmp=-1;
+ }
+ dac_val+=tmp;
+ if (dac_val>0x1000)
+ {
+    dac_val=0x1000; //max, 12bit
+ }
+ if (dac_val<TRANSISTOR_THRESHOLD)
+ {  // the output is zero below 800 due to transistor threshold
+    dac_val=TRANSISTOR_THRESHOLD;
+ }
+ 
+ analogWrite(A14, (int)dac_val);
+}
+     
 uint16_t readPot(uint8_t pin)
 {
    return adc->analogRead(pin);

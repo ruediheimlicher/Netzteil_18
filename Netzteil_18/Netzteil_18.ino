@@ -105,13 +105,20 @@ uint8_t timercounter=0;
 uint16_t uptaste_history = 0;
 uint16_t downtaste_history = 0;
 
+volatile uint8_t tipptastenstatus = 0;
+
 typedef struct
 {
    uint8_t pin;
    uint16_t tasten_history;
+   uint8_t pressed;
 }tastenstatus;
 
 tastenstatus tastenstatusarray[8] = {}; 
+
+uint8_t tastenbitstatus = 0; // bits fuer tasten
+
+
 // Prototypes
 
 unsigned int packetCount = 0;
@@ -163,35 +170,68 @@ uint8_t test_for_press_only(uint8_t pin)
    return pressed;
 }
 
-void debounceloop()
+uint8_t checktasten(void)
+{
+   uint8_t count = 0; // Anzahl aktivierter Tasten
+   uint8_t i=0;
+   while (i<8)
+   {
+      uint8_t pressed = 0;
+      if (tastenstatusarray[i].pin < 0xFF)
+      {
+         count++;
+         tastenstatusarray[i].tasten_history = tastenstatusarray[i].tasten_history << 1;
+         tastenstatusarray[i].tasten_history |= readTaste(tastenstatusarray[i].pin);
+         if ((tastenstatusarray[i].tasten_history & 0b11000111) == 0b00000111)
+         {
+            pressed = 1;
+            tipptastenstatus |= (1<<i);
+            tastenbitstatus |= (1<<i);
+            tastenstatusarray[i].tasten_history = 0b11111111;
+            tastenstatusarray[i].pressed = pressed;
+         }
+         
+      }// i < 0xFF
+      
+      i++;
+   }
+   // tastenstatusarray
+   return tipptastenstatus ;
+}
+
+void debounce_ISR(void)
 {
    digitalWriteFast(OSZIA,LOW);
 //   update_button(5,&uptaste_history);
-   digitalWriteFast(OSZIA,HIGH);
+   
  //  if (test_for_press_only(5))
-   {
-      timercounter++;
-   }
+   uint8_t old_tipptastenstatus = tipptastenstatus;
+   tipptastenstatus = checktasten();
+    digitalWriteFast(OSZIA,HIGH);
+   //digitalWriteFast(OSZIA,HIGH);
 }
 
 void drehgeber_ISR(void)
 {
    //digitalWriteFast(OSZIA,LOW);
-   if (digitalReadFast(DREHGEBER_B) == 0) // RI A
+   if (digitalReadFast(DREHGEBER_B) == 0) //  Impuls B ist 0,  kommt spaeter: RI A
    {
       if (drehgeber_count < DREHGEBER_ANZ_POS - 10)
       {
          drehgeber_dir = 0;
          drehgeber_count += 10;
+         
       }
+      inc_targetvalue(1, 16);
    }
-   else // RI B
+   else // //  Impuls B ist 1,  war frueher:RI B
    {
       if (drehgeber_count > 10)
       {
          drehgeber_dir = 1;
          drehgeber_count -= 10;
       }
+      dec_targetvalue(1, 16);
    }
    //digitalWriteFast(OSZIA,HIGH);
 }
@@ -228,13 +268,17 @@ void setup()
    pinMode(DREHGEBER_B,INPUT); // Kanal B
    
    // debounce
-   pinMode(5,INPUT); // Taste
+   
    for (uint8_t i= 0;i<8;i++)
    {
       tastenstatusarray[i].tasten_history = 0;
+      tastenstatusarray[i].pressed = 0;
+      tastenstatusarray[i].pin = 0xFF;
    }
    tastenstatusarray[0].pin = 5;
+   pinMode(5,INPUT); // Taste
    tastenstatusarray[1].pin = 6;
+   pinMode(6,INPUT); // Taste
    //
    
    lcd_initialize(LCD_FUNCTION_8x2, LCD_CMD_ENTRY_INC, LCD_CMD_ON);
@@ -244,7 +288,7 @@ void setup()
    
    init_analog(); 
    
-   debouncetimer.begin(debounceloop,1000000);
+   debouncetimer.begin(debounce_ISR,1000);
    
    
 }
@@ -404,12 +448,48 @@ void loop()
       lcd_gotoxy(0,1);
       lcd_putc('d');
       lcd_putint12(drehgeber_count);
-      lcd_putc(' ');
-      lcd_putint1(drehgeber_dir);
+      lcd_putc('t');
+      lcd_puthex(tipptastenstatus);
+      
+      // Taste[0]
+      if (tastenstatusarray[0].pressed) // Taste gedrueckt U+
+      {
+         lcd_gotoxy(14,1);
+         lcd_putc('A');
+         inc_targetvalue(1, 8);
+         tastenstatusarray[0].pressed = 0;
+      }
+      else
+      {
+         lcd_gotoxy(14,1);
+         lcd_putc(' ');
+      }
+      
+ 
+      // Taste[1]
+      if (tastenstatusarray[1].pressed) // Taste gedrueckt U-
+      {
+         lcd_gotoxy(15,1);
+         lcd_putc('B');
+         dec_targetvalue(1, 8);
+         tastenstatusarray[1].pressed = 0;
+      }
+      else
+      {
+         lcd_gotoxy(15,1);
+         lcd_putc(' ');
+      }
+      
+
+      lcd_gotoxy(18,1);
+      lcd_puthex(tastenbitstatus);
+      tastenbitstatus = 0;
+      
+      //lcd_putint1(drehgeber_dir);
      // if ((timercounter % 1000) == 0)
       {
          lcd_putc(' ');
-         lcd_putint(timercounter);
+         
       }
       
       lcd_gotoxy(18, 0);
@@ -444,6 +524,8 @@ void loop()
       lcd_putc(' ');
       lcd_puts("t");
       lcd_putint12(get_targetvalue(1));
+      
+      
      
    } // if sinceblink
    

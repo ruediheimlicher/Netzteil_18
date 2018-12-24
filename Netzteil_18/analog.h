@@ -28,6 +28,10 @@ uint8_t get_currentcontrol(void);
 extern uint16_t readPot(uint8_t pin);
 //extern static void control_loop(void);
 extern void set_target_U(uint16_t U_target);
+extern void dec_targetvalue(uint8_t channel, uint16_t dec); // targetvalue decrementieren um dec
+extern void inc_targetvalue(uint8_t channel, uint16_t dec); // targetvalue incrementieren um dec
+
+
 extern ADC::Sync_result result;
 
 extern int16_t get_analogresult(uint8_t channel);
