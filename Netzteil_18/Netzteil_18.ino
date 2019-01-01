@@ -115,6 +115,10 @@ uint16_t downtaste_history = 0;
 
 volatile uint8_t tipptastenstatus = 0;
 
+volatile uint8_t SPItastenstatus = 0;
+volatile uint8_t SPIcheck=0;
+
+
 typedef struct
 {
    uint8_t pin;
@@ -186,6 +190,7 @@ uint8_t checktasten(void)
 {
    uint8_t count = 0; // Anzahl aktivierter Tasten
    uint8_t i=0;
+   uint8_t tastencode = 0;
    while (i<8)
    {
       uint8_t pressed = 0;
@@ -193,7 +198,9 @@ uint8_t checktasten(void)
       {
          count++;
          tastenstatusarray[i].tasten_history = tastenstatusarray[i].tasten_history << 1;
-         tastenstatusarray[i].tasten_history |= readTaste(tastenstatusarray[i].pin);
+         //tastencode = readTaste(tastenstatusarray[i].pin);
+         //tastenstatusarray[i].tasten_history |= tastencode; // pin-nummer von $element i
+        tastenstatusarray[i].tasten_history |= readTaste(tastenstatusarray[i].pin); // pin-nummer von $element i
          if ((tastenstatusarray[i].tasten_history & 0b11000111) == 0b00000111)
          {
             pressed = 1;
@@ -208,7 +215,40 @@ uint8_t checktasten(void)
       i++;
    }
    // tastenstatusarray
+   //return tastencode;
    return tipptastenstatus ;
+}
+
+uint8_t checkSPItasten(void)
+{
+   uint8_t count = 0; // Anzahl aktivierter Tasten
+   uint8_t i=0;
+   uint8_t tastencode = 0;
+   uint8_t check=0;
+   tastencode = 0xFF - mcp.gpioReadPortB(); // active taste ist LO > invertieren
+
+   while (i<8)
+   {
+      uint8_t pressed = 0;
+      if (tastenstatusarray[i].pin < 0xFF)
+      {
+         count++;
+         tastenstatusarray[i].tasten_history = tastenstatusarray[i].tasten_history << 1;
+         
+         uint8_t pinnummer = tastenstatusarray[i].pin;
+         tastenstatusarray[i].tasten_history |= ((tastencode & (1<<pinnummer)) > 0);
+         if ((tastenstatusarray[i].tasten_history & 0b11000111) == 0b00000111)
+         {
+            pressed = 1;
+            SPItastenstatus |= (1<<i);
+            tastenbitstatus |= (1<<i);
+            tastenstatusarray[i].tasten_history = 0b11111111;
+            tastenstatusarray[i].pressed = pressed;
+         }
+      }// i < 0xFF
+      i++;
+   }
+   return SPItastenstatus ;
 }
 
 
@@ -216,13 +256,10 @@ uint8_t checktasten(void)
 void debounce_ISR(void)
 {
    digitalWriteFast(OSZIA,LOW);
-//   update_button(5,&uptaste_history);
-   
- //  if (test_for_press_only(5))
    uint8_t old_tipptastenstatus = tipptastenstatus;
-   tipptastenstatus = checktasten();
+   //tipptastenstatus = checktasten();
+   SPIcheck  = checkSPItasten(); 
     digitalWriteFast(OSZIA,HIGH);
-   //digitalWriteFast(OSZIA,HIGH);
 }
 
 void drehgeber_ISR(void)
@@ -234,7 +271,6 @@ void drehgeber_ISR(void)
       {
          drehgeber_dir = 0;
          drehgeber_count += 10;
-         
       }
       inc_targetvalue(1, 16);
    }
@@ -295,12 +331,13 @@ void setup()
    pinMode(5,INPUT); // Taste
    tastenstatusarray[1].pin = 6;
    pinMode(6,INPUT); // Taste
+   tastenstatusarray[2].pin = 2;
+  // pinMode(2,INPUT); // Taste
+
    //
    
    // SPI
-   
-   //pinMode(SPI_CLK,OUTPUT);
-   
+    
    lcd_initialize(LCD_FUNCTION_8x2, LCD_CMD_ENTRY_INC, LCD_CMD_ON);
    
    _delay_ms(100);
@@ -326,11 +363,6 @@ void setup()
    
    
 }
-///
-/// @brief      Loop
-/// @details	Call blink
-///
-// Add loop code
 void loop()
 {
 
@@ -353,7 +385,7 @@ void loop()
       {
          //Serial.printf("LED ON\n");
          digitalWriteFast(myLED, 0);
-         digitalWriteFast(OSZIA,LOW);
+         //digitalWriteFast(OSZIA,LOW);
          //digitalWriteFast(SPI_CLK,LOW);
          //mcp.gpioDigitalWrite(1,LOW);
          //mcp.gpioDigitalWrite((regA ),LOW);
@@ -371,7 +403,7 @@ void loop()
       {
          //Serial.printf("LED OFF\n");
          digitalWriteFast(myLED, 1);
-         digitalWriteFast(OSZIA,HIGH);
+         //digitalWriteFast(OSZIA,HIGH);
          //digitalWriteFast(SPI_CLK,HIGH);
          //mcp.gpioDigitalWrite((regA ),HIGH);
          
@@ -400,39 +432,7 @@ void loop()
          regA = 1;
       }
    
-   //   uint8_t portBdata  = (mcp.readGpioPort() & 0x00FF);
-      uint8_t portBdata = mcp.gpioReadPortB(); 
-//      SPI.endTransaction();
-      //regA &= 0x0F;
-      lcd_gotoxy(9,1); 
-      // PORTB
-      //lcd_puthex(portdata & 0x00FF);
-      lcd_puthex(portBdata);
-      //lcd_putc(' ');
-      //lcd_puthex(portdata & 0xFF00);
-      
-      //digitalWriteFast(SPI_CLK,(!(digitalReadFast(SPI_CLK))));
       sinceblink = 0;
-      
-     //mcp.gpioRegisterWriteByte(0,(regA << 8 ),false);
-      
-      
-      
-      //lcd_gotoxy(10,0);
-      //lcd_puts("pot: ");
-      
-      //lcd_putint12(U_Pot);
-      //lcd_gotoxy(0,1);
-      //lcd_puts("adc0:");
-      //lcd_putint12(analog_result[0]);
-      //lcd_putc(' ');
-      
-       //lcd_gotoxy(0,2);
-      //lcd_puts("adc1:");
-      //lcd_putint12(analog_result[1]);
-      //lcd_putc(' ');
-      
-      //lcd_putint12(analog_result[2]);
       
       outbuffer[0] = 0;
       outbuffer[1] = (U_Pot & 0xFF00) >> 8;
@@ -463,36 +463,11 @@ void loop()
   //    Serial.print("analog 0 is: ");
    //   Serial.println(val);
       
-      /*
-      //Serial.println("Print every 2.5 seconds");
-      Serial.printf("usb_rawhid_recv r: %x\t ",r);
-      
-      uint8_t i=0;
-      Serial.printf("inbuffer:\t");
-      while (i<10)
-      {         
-         //        Serial.printf("%x\t",inbuffer[i]);
-         i++;
-      }
-      */
-     
-      
       
    //   Serial.printf("\n");
       
       
-      
-      //blink(myLED, 1, 150);
-      //
-      if (digitalRead(myLED) == 1)
-      {
-         //digitalWriteFast(myLED, LOW);
-      }
-      else
-      {
-         //digitalWriteFast(myLED, HIGH);
-      }
-      
+       
       //`
       adc->printError();
       adc->resetError();
@@ -534,6 +509,9 @@ void loop()
        */
       
 #pragma mark debounce
+      lcd_gotoxy(12,1);
+      lcd_puthex(SPItastenstatus);
+      SPItastenstatus=0;
       lcd_gotoxy(0,1);
       lcd_putc('d');
       lcd_putint12(drehgeber_count);
@@ -562,6 +540,7 @@ void loop()
          lcd_putc('B');
          dec_targetvalue(1, 8);
          tastenstatusarray[1].pressed = 0;
+         
       }
       else
       {
