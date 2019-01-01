@@ -5,6 +5,8 @@
  Copyright: GPL
 ***************************************************************************/
 #include "ADC.h"
+
+
 #ifndef ANALOG_H
 #define ANALOG_H
 
@@ -14,7 +16,7 @@ extern ADC *adc;
 #define ADC_I  2
 #define ADC_POT   4
 
-#define OSZIA 12
+#define OSZIA 9
 
 
 extern void init_analog(void);

@@ -30,10 +30,11 @@
 #define I_RESISTOR 0.79
 // short circuit protection limit (do not change unless you know what you do):
 // 850=2.85A= (2.85A * 1023 * 0.75 / 2.56 )
-#define SH_CIR_PROT 850
+// #define SH_CIR_PROT 850 // 3700 (3V max aus INA)
+
+#define SH_CIR_PROT 3700
 
 /* ================= uncomment this section for the model 30V 2.0A */
-
 
 //#define U_MAX 300
 //#define I_MAX 200
@@ -56,6 +57,14 @@
 #define DREHGEBER_A   3    // Pin A
 #define DREHGEBER_B   4    // Pin B
 #define DREHGEBER_ANZ_POS 4096          // Anzahl Schalterstellugen
+
+
+
+#define SPI_CLK   13
+#define SPI_MISO  12
+#define SPI_MOSI  11
+#define SPI_CS 10
+
 
 #endif //CAL_HW_H
 

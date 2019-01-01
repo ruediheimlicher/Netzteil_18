@@ -76,6 +76,7 @@ void adc0_isr(void)
 {
    //digitalWriteFast(OSZIA,LOW);
    analog_result[0] = adc->analogReadContinuous(ADC_0);// I
+   
    analog_result[1] = adc->analogReadContinuous(ADC_1);// U
    //U_Pot = adc->analogRead(A9,ADC_0);
    val = analog_result[1]; // U

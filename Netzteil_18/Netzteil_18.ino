@@ -4,6 +4,9 @@
 
 
 
+
+
+
 ///
 /// @mainpage	Netzteil_18
 ///
@@ -44,7 +47,13 @@
 
 
 #include "Arduino.h"
+
+// bibs muessen auch im MAkefile angegeben werden:
+// APP_LIBS_LIST = ADC SPI
+// https://forum.pjrc.com/threads/43239-Problems-using-Xcode-with-embedXcode
 #include <ADC.h>
+#include <SPI.h>
+#include "gpio_MCP23S17.h"
 // Set parameters
 
 
@@ -53,7 +62,6 @@
 #include "lcd.h"
 #include "analog.h"
 #include "hardware_settings.h"
-
 // Define structures and classes
 
 ADC *adc = new ADC(); // adc object
@@ -117,6 +125,10 @@ typedef struct
 tastenstatus tastenstatusarray[8] = {}; 
 
 uint8_t tastenbitstatus = 0; // bits fuer tasten
+
+gpio_MCP23S17 mcp(10,0x20);//instance (address A0,A1,A2 tied to +)
+uint8_t regA = 0x01;
+uint8_t regB = 0;
 
 
 // Prototypes
@@ -199,6 +211,8 @@ uint8_t checktasten(void)
    return tipptastenstatus ;
 }
 
+
+
 void debounce_ISR(void)
 {
    digitalWriteFast(OSZIA,LOW);
@@ -236,13 +250,15 @@ void drehgeber_ISR(void)
    //digitalWriteFast(OSZIA,HIGH);
 }
 
+
+
 void setup()
 {
    Serial.begin(38400);
    // !!! Help: http://bit.ly/2l2pqAL
    pinMode(OSZIA,OUTPUT);
    digitalWriteFast(OSZIA,HIGH);
-   myLED = 13;
+   myLED = 8;
    // LCD
    pinMode(LCD_RSDS_PIN, OUTPUT);
    pinMode(LCD_ENABLE_PIN, OUTPUT);
@@ -260,7 +276,7 @@ void setup()
    
    pinMode(readPin3, INPUT);
    
-   pinMode(9, INPUT);
+   //pinMode(9, INPUT);
    
    // Drehgeber
    pinMode(DREHGEBER_A,INPUT); // Kanal A
@@ -281,6 +297,10 @@ void setup()
    pinMode(6,INPUT); // Taste
    //
    
+   // SPI
+   
+   //pinMode(SPI_CLK,OUTPUT);
+   
    lcd_initialize(LCD_FUNCTION_8x2, LCD_CMD_ENTRY_INC, LCD_CMD_ON);
    
    _delay_ms(100);
@@ -288,7 +308,21 @@ void setup()
    
    init_analog(); 
    
+   pinMode(SPI_CS,OUTPUT);
+   mcp.begin();
+   /*
+    • PortA registeraddresses range from 00h–0Ah
+    • PortB registeraddresses range from 10h–1Ah
+    PortA output, PortB input: Direction 1 output: direction 0
+    0x0F: A: out B: in
+    */
+   //mcp.gpioPinMode(OUTPUT);
+   mcp.gpioPinMode(0x00FF);
+   mcp.portPullup(0x00FF);
+   mcp.gpioPort(0xFFFF);
+   
    debouncetimer.begin(debounce_ISR,1000);
+  
    
    
 }
@@ -313,22 +347,77 @@ void loop()
   //    set_target_adc_val(1,sinval);
   //    Serial.printf("sine wave: phase: \t%2.2f\t sin: \t%2.2f \t",phase, sin(phase));
    //   Serial.println(val);
-      
+      //mcp.gpioPort(0xFFFF);
       // end sine wave
       if (digitalRead(myLED) == 1)
       {
          //Serial.printf("LED ON\n");
          digitalWriteFast(myLED, 0);
          digitalWriteFast(OSZIA,LOW);
+         //digitalWriteFast(SPI_CLK,LOW);
+         //mcp.gpioDigitalWrite(1,LOW);
+         //mcp.gpioDigitalWrite((regA ),LOW);
+         //mcp.gpioPort(0xFFFF);
+         /*
+         for (int i=0;i<16;i++)
+         {
+            mcp.gpioDigitalWrite(i,LOW);
+           // delay(150);
+         }
+          */
+
       }
       else
       {
          //Serial.printf("LED OFF\n");
          digitalWriteFast(myLED, 1);
          digitalWriteFast(OSZIA,HIGH);
+         //digitalWriteFast(SPI_CLK,HIGH);
+         //mcp.gpioDigitalWrite((regA ),HIGH);
+         
+           /*
+         for (int i=0;i<16;i++)
+         {
+            mcp.gpioDigitalWrite(i,HIGH);
+         }
+          */
+
       }
+      
+      
+      // https://forum.arduino.cc/index.php?topic=353678.0
+ //     SPI.beginTransaction(SPISettings(20000000, MSBFIRST, SPI_MODE0));
+      //mcp.gpioPort((regA << 8));
+      mcp.gpioWritePortA(regA);
+      //uint16_t portdata = mcp.exchangeGpioPort((regA << 8));
+//      
+      if (regA < 0x80)
+      {
+         regA <<= 1;
+      }
+      else
+      {
+         regA = 1;
+      }
+   
+   //   uint8_t portBdata  = (mcp.readGpioPort() & 0x00FF);
+      uint8_t portBdata = mcp.gpioReadPortB(); 
+//      SPI.endTransaction();
+      //regA &= 0x0F;
+      lcd_gotoxy(9,1); 
+      // PORTB
+      //lcd_puthex(portdata & 0x00FF);
+      lcd_puthex(portBdata);
+      //lcd_putc(' ');
+      //lcd_puthex(portdata & 0xFF00);
+      
+      //digitalWriteFast(SPI_CLK,(!(digitalReadFast(SPI_CLK))));
       sinceblink = 0;
-     
+      
+     //mcp.gpioRegisterWriteByte(0,(regA << 8 ),false);
+      
+      
+      
       //lcd_gotoxy(10,0);
       //lcd_puts("pot: ");
       
@@ -397,11 +486,11 @@ void loop()
       //
       if (digitalRead(myLED) == 1)
       {
-         digitalWriteFast(myLED, LOW);
+         //digitalWriteFast(myLED, LOW);
       }
       else
       {
-         digitalWriteFast(myLED, HIGH);
+         //digitalWriteFast(myLED, HIGH);
       }
       
       //`

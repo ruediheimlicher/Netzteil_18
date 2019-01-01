@@ -23,7 +23,8 @@
 
 
 #include "Arduino.h"
-//#include <ADC.h>
+#include <ADC.h>
+//#include <SPI.h>
 #include "hardware_settings.h"
 
 #ifndef Netzteil_18_LocalLibrary_h

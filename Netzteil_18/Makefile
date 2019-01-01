@@ -42,7 +42,7 @@
 #	TouchScreen USBHost_t36 UTFT VirtualWire Wire WS2812Serial x10 XBee 
 #	XPT2046_Touchscreen 
 #
-APP_LIBS_LIST = ADC
+APP_LIBS_LIST = ADC SPI
 
 # List user's libraries here
 # Help: http://bit.ly/2ytlwXb
