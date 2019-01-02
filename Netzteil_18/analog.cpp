@@ -23,6 +23,9 @@ extern volatile uint8_t outbuffer[64];
 extern  int readPin;
 extern int U_Pot;
 extern volatile int16_t analog_result[2]; 
+
+//ADC::Sync_result result;
+
 //debug LED:
 // set output to VCC, red LED off
 //#define LEDOFF PORTD|=(1<<PORTD0)
@@ -75,9 +78,14 @@ void init_analog(void)
 void adc0_isr(void) 
 {
    //digitalWriteFast(OSZIA,LOW);
-   analog_result[0] = adc->analogReadContinuous(ADC_0);// I
+   result = adc->readSynchronizedContinuous();
    
-   analog_result[1] = adc->analogReadContinuous(ADC_1);// U
+   //analog_result[0] = adc->analogReadContinuous(ADC_0);// I
+   analog_result[0] = (uint16_t)result.result_adc0;// I
+   
+   //analog_result[1] = adc->analogReadContinuous(ADC_1);// U
+   analog_result[1] = (uint16_t)result.result_adc1;;// U
+   
    //U_Pot = adc->analogRead(A9,ADC_0);
    val = analog_result[1]; // U
    outbuffer[0] = 0;

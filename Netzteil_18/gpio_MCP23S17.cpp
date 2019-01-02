@@ -19,7 +19,7 @@ gpio_MCP23S17::gpio_MCP23S17(){
 //if there's support for SPI transactions it will use SPI.usingInterrupt(intNum);
 //to prevent problems from interrupt
 /*USE:
-  int intNumber = mcp.getInterruptNumber(gpio_int_pin);
+  int intNumber = mcp0.getInterruptNumber(gpio_int_pin);
   if (intNumber < 255){
     attachInterrupt(intNumber, keypress, FALLING);//attack interrupt
   } else {

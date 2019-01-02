@@ -65,6 +65,7 @@
 // Define structures and classes
 
 ADC *adc = new ADC(); // adc object
+ADC::Sync_result result;
 IntervalTimer debouncetimer;
 // Define variables and constants
 ///
@@ -96,7 +97,7 @@ int  readPin = A9; // ADC0
 int readPin2 = A2; // ADC0 or ADC1
 int readPin3 = A3; // ADC1
 
-ADC::Sync_result result;
+//ADC::Sync_result result;
 
 // sine wave
 float phase = 0.0;
@@ -130,7 +131,8 @@ tastenstatus tastenstatusarray[8] = {};
 
 uint8_t tastenbitstatus = 0; // bits fuer tasten
 
-gpio_MCP23S17 mcp(10,0x20);//instance (address A0,A1,A2 tied to +)
+gpio_MCP23S17 mcp0(10,0x20);//instance 0 (address A0,A1,A2 tied to 0)
+gpio_MCP23S17 mcp1(10,0x21);//instance 1 (address A0 to +, A1,A2 tied to 0)
 uint8_t regA = 0x01;
 uint8_t regB = 0;
 
@@ -225,7 +227,7 @@ uint8_t checkSPItasten(void)
    uint8_t i=0;
    uint8_t tastencode = 0;
    uint8_t check=0;
-   tastencode = 0xFF - mcp.gpioReadPortB(); // active taste ist LO > invertieren
+   tastencode = 0xFF - mcp0.gpioReadPortB(); // active taste ist LO > invertieren
 
    while (i<8)
    {
@@ -346,17 +348,17 @@ void setup()
    init_analog(); 
    
    pinMode(SPI_CS,OUTPUT);
-   mcp.begin();
+   mcp0.begin();
    /*
     • PortA registeraddresses range from 00h–0Ah
     • PortB registeraddresses range from 10h–1Ah
     PortA output, PortB input: Direction 1 output: direction 0
     0x0F: A: out B: in
     */
-   //mcp.gpioPinMode(OUTPUT);
-   mcp.gpioPinMode(0x00FF);
-   mcp.portPullup(0x00FF);
-   mcp.gpioPort(0xFFFF);
+   //mcp0.gpioPinMode(OUTPUT);
+   mcp0.gpioPinMode(0x00FF);
+   mcp0.portPullup(0x00FF);
+   mcp0.gpioPort(0xFFFF);
    
    debouncetimer.begin(debounce_ISR,1000);
   
@@ -379,7 +381,7 @@ void loop()
   //    set_target_adc_val(1,sinval);
   //    Serial.printf("sine wave: phase: \t%2.2f\t sin: \t%2.2f \t",phase, sin(phase));
    //   Serial.println(val);
-      //mcp.gpioPort(0xFFFF);
+      //mcp0.gpioPort(0xFFFF);
       // end sine wave
       if (digitalRead(myLED) == 1)
       {
@@ -387,13 +389,13 @@ void loop()
          digitalWriteFast(myLED, 0);
          //digitalWriteFast(OSZIA,LOW);
          //digitalWriteFast(SPI_CLK,LOW);
-         //mcp.gpioDigitalWrite(1,LOW);
-         //mcp.gpioDigitalWrite((regA ),LOW);
-         //mcp.gpioPort(0xFFFF);
+         //mcp0.gpioDigitalWrite(1,LOW);
+         //mcp0.gpioDigitalWrite((regA ),LOW);
+         //mcp0.gpioPort(0xFFFF);
          /*
          for (int i=0;i<16;i++)
          {
-            mcp.gpioDigitalWrite(i,LOW);
+            mcp0.gpioDigitalWrite(i,LOW);
            // delay(150);
          }
           */
@@ -405,12 +407,12 @@ void loop()
          digitalWriteFast(myLED, 1);
          //digitalWriteFast(OSZIA,HIGH);
          //digitalWriteFast(SPI_CLK,HIGH);
-         //mcp.gpioDigitalWrite((regA ),HIGH);
+         //mcp0.gpioDigitalWrite((regA ),HIGH);
          
            /*
          for (int i=0;i<16;i++)
          {
-            mcp.gpioDigitalWrite(i,HIGH);
+            mcp0.gpioDigitalWrite(i,HIGH);
          }
           */
 
@@ -419,11 +421,15 @@ void loop()
       
       // https://forum.arduino.cc/index.php?topic=353678.0
  //     SPI.beginTransaction(SPISettings(20000000, MSBFIRST, SPI_MODE0));
-      //mcp.gpioPort((regA << 8));
-      mcp.gpioWritePortA(regA);
-      //uint16_t portdata = mcp.exchangeGpioPort((regA << 8));
-//      
-      if (regA < 0x80)
+      //mcp0.gpioPort((regA << 8));
+      uint8_t regBB = (regB & 0x07)<< 5;
+      mcp0.gpioWritePortA((regA | regBB));
+      //uint16_t portdata = mcp0.exchangeGpioPort((regA << 8));
+//    
+      regB++;
+      
+      
+      if (regA < 0x10)
       {
          regA <<= 1;
       }

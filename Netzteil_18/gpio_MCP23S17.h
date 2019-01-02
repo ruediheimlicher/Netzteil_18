@@ -64,7 +64,7 @@ A2,A1,A0 tied to ground = 0x20
 
 #if defined (SPI_HAS_TRANSACTION)
 #if defined(__MK20DX128__) || defined(__MK20DX256__) || defined(__MK64FX512__) || defined(__MK66FX1M0__)
-const static uint32_t _MCPMaxSpeed = 20000000UL; // orig 300000000
+const static uint32_t _MCPMaxSpeed = 10000000UL; // orig 300000000
 #elif defined(ESP8266)
 const static uint32_t _MCPMaxSpeed = 80000000UL;
 #elif defined(__MKL26Z64__) //Teensy LC
