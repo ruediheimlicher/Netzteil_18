@@ -72,7 +72,7 @@ IntervalTimer debouncetimer;
 /// @brief      Name of the LED
 ///
 
-uint8_t myLED;
+uint8_t loopLED;
 #define USB_DATENBREITE 64
 int8_t r;
 volatile uint8_t inbuffer[USB_DATENBREITE]={};
@@ -296,7 +296,7 @@ void setup()
    // !!! Help: http://bit.ly/2l2pqAL
    pinMode(OSZIA,OUTPUT);
    digitalWriteFast(OSZIA,HIGH);
-   myLED = 8;
+   loopLED = 8;
    // LCD
    pinMode(LCD_RSDS_PIN, OUTPUT);
    pinMode(LCD_ENABLE_PIN, OUTPUT);
@@ -304,7 +304,7 @@ void setup()
    digitalWrite(LCD_RSDS_PIN,1);
    digitalWrite(LCD_ENABLE_PIN,1);
    digitalWrite(LCD_CLOCK_PIN,1);
-   pinMode(myLED, OUTPUT);
+   pinMode(loopLED, OUTPUT);
    analogReadResolution(12);
    analogWriteResolution(12);
    
@@ -383,10 +383,10 @@ void loop()
    //   Serial.println(val);
       //mcp0.gpioPort(0xFFFF);
       // end sine wave
-      if (digitalRead(myLED) == 1)
+      if (digitalRead(loopLED) == 1)
       {
          //Serial.printf("LED ON\n");
-         digitalWriteFast(myLED, 0);
+         digitalWriteFast(loopLED, 0);
          //digitalWriteFast(OSZIA,LOW);
          //digitalWriteFast(SPI_CLK,LOW);
          //mcp0.gpioDigitalWrite(1,LOW);
@@ -404,7 +404,7 @@ void loop()
       else
       {
          //Serial.printf("LED OFF\n");
-         digitalWriteFast(myLED, 1);
+         digitalWriteFast(loopLED, 1);
          //digitalWriteFast(OSZIA,HIGH);
          //digitalWriteFast(SPI_CLK,HIGH);
          //mcp0.gpioDigitalWrite((regA ),HIGH);
