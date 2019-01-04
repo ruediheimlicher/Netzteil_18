@@ -223,7 +223,6 @@ static void  control_loop()
        if (tmp>0) tmp=0;
     }
  }
- 
  if (tmp> -3 && tmp<4)
  { // avoid LSB bouncing if we are close
     tmp=0;
