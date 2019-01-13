@@ -65,6 +65,8 @@
 #define SPI_MOSI  11
 #define SPI_CS 10
 
+#define TONE A7
+
 
 #endif //CAL_HW_H
 

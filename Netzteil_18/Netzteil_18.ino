@@ -119,6 +119,8 @@ volatile uint8_t tipptastenstatus = 0;
 volatile uint8_t SPItastenstatus = 0;
 volatile uint8_t SPIcheck=0;
 
+#define I_OUT  A9
+#define U_OUT  A8
 
 typedef struct
 {
@@ -261,7 +263,10 @@ void debounce_ISR(void)
    uint8_t old_tipptastenstatus = tipptastenstatus;
    //tipptastenstatus = checktasten();
    SPIcheck  = checkSPItasten(); 
-    digitalWriteFast(OSZIA,HIGH);
+   digitalWriteFast(OSZIA,HIGH);
+   analogWrite(I_OUT, get_analogresult(0));
+   analogWrite(U_OUT, get_analogresult(1));
+   
 }
 
 void drehgeber_ISR(void)
@@ -321,6 +326,8 @@ void setup()
    attachInterrupt(DREHGEBER_A, drehgeber_ISR, FALLING); //
    pinMode(DREHGEBER_B,INPUT); // Kanal B
    
+   pinMode(TONE, OUTPUT);
+   
    // debounce
    
    for (uint8_t i= 0;i<8;i++)
@@ -342,6 +349,10 @@ void setup()
     
    lcd_initialize(LCD_FUNCTION_8x2, LCD_CMD_ENTRY_INC, LCD_CMD_ON);
    
+   pinMode(U_OUT,OUTPUT);
+   analogWriteFrequency(U_OUT, 10000);
+   
+
    _delay_ms(100);
    lcd_puts("Teensy");
    
@@ -383,6 +394,8 @@ void loop()
    //   Serial.println(val);
       //mcp0.gpioPort(0xFFFF);
       // end sine wave
+      
+ //     tone(TONE,400,300);
       if (digitalRead(loopLED) == 1)
       {
          //Serial.printf("LED ON\n");
@@ -513,7 +526,16 @@ void loop()
        
        
        */
+      uint16_t temp = 0;
       
+    //  adc->disableInterrupts(ADC_0);
+    //  adc->disableInterrupts(ADC_1);
+   //   temp = analogRead(9);
+   //   adc->enableInterrupts(ADC_0);
+   //   adc->enableInterrupts(ADC_1);
+      
+  //    lcd_gotoxy(2,2);
+  //    lcd_putint12(temp);
 #pragma mark debounce
       lcd_gotoxy(12,1);
       lcd_puthex(SPItastenstatus);
