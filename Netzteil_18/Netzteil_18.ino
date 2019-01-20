@@ -435,8 +435,10 @@ void loop()
       // https://forum.arduino.cc/index.php?topic=353678.0
  //     SPI.beginTransaction(SPISettings(20000000, MSBFIRST, SPI_MODE0));
       //mcp0.gpioPort((regA << 8));
+      regB = 0x01;
       uint8_t regBB = (regB & 0x07)<< 5;
       mcp0.gpioWritePortA((regA | regBB));
+      
       //uint16_t portdata = mcp0.exchangeGpioPort((regA << 8));
 //    
       regB++;
@@ -458,7 +460,8 @@ void loop()
       outbuffer[2] = U_Pot & 0x00FF;
       
       lcd_gotoxy(0,0);
-      lcd_puts("U: ");
+      //lcd_puts("U: ");
+      
       uint16_t U = get_analogresult(1);
       lcd_putint12(U);
       lcd_putc(' ');
@@ -466,7 +469,8 @@ void loop()
       int_to_dispstr(Udisp,buf,1);
       lcd_putint12(adc_u_to_disp(U));
       lcd_putc(' ');
-      lcd_puts(buf);
+      lcd_puthex(regB);
+      //lcd_puts(buf);
       // "sincePrint" auto-increases
       lcd_gotoxy(0,0);
       //lcd_puts("adc: ");
