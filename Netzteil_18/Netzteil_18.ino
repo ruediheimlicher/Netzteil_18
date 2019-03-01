@@ -80,17 +80,27 @@ volatile uint8_t outbuffer[USB_DATENBREITE]={};
 elapsedMillis sinceblink;
 elapsedMillis sinceusb;
 
+
+elapsedMillis since_U;  // Zeit Drehgeberimpuls U
+elapsedMillis since_I;  // Zeit Drehgeberimpuls I
+elapsedMillis since_P;  // Zeit Drehgeberimpuls Potential
+
+
+
 int period = 1000;
 unsigned long time_now = 0;
 int val;
 int U_soll;
 int I_soll;
-int U_Pot;
+int U_Pot; 
+//int U_soll;
+//int in_Isoll;
 
 uint16_t input =0;
 
 volatile int16_t analog_result[2]; 
 
+volatile int16_t potential = P_OFFSET;
 
 int  readPin = A9; // ADC0
 
@@ -108,8 +118,18 @@ float sinval = 0;
 char buf[21];
 
 // Drehgeber
-uint8_t drehgeber_dir = 0; //Drehrichtung
-volatile uint16_t drehgeber_count = 0;
+uint8_t drehgeber0_dir = 0; //Drehrichtung
+volatile uint16_t drehgeber0_count = 0;
+
+uint8_t drehgeber1_dir = 0; //Drehrichtung
+volatile uint16_t drehgeber1_count = 0;
+
+uint8_t drehgeber2_dir = 0; //Drehrichtung
+volatile uint16_t drehgeber2_count = 0;
+
+volatile uint8_t U_instrumentstatus = 0; // Anzeige U-Instrument: Potential oder Ausgangsspannung
+volatile uint16_t U_instrumentcounter = 0; // Counter fuer Anzeigezeit
+
 uint8_t timercounter=0;
 uint16_t uptaste_history = 0;
 uint16_t downtaste_history = 0;
@@ -119,8 +139,11 @@ volatile uint8_t tipptastenstatus = 0;
 volatile uint8_t SPItastenstatus = 0;
 volatile uint8_t SPIcheck=0;
 
-#define I_OUT  A9
-#define U_OUT  A8
+#define I_OUT  23 // A9
+#define U_OUT  6
+
+
+volatile uint8_t loopcontrol=0;
 
 typedef struct
 {
@@ -164,7 +187,7 @@ uint8_t readTaste(uint8_t taste)
 void update_button(uint8_t taste, uint16_t *button_history)
 {
    *button_history = *button_history << 1;
-   *button_history |= readTaste(taste);
+   *button_history |= readTaste(taste); 
 }
 
 uint8_t is_button_pressed(uint8_t button_history)
@@ -202,9 +225,7 @@ uint8_t checktasten(void)
       {
          count++;
          tastenstatusarray[i].tasten_history = tastenstatusarray[i].tasten_history << 1;
-         //tastencode = readTaste(tastenstatusarray[i].pin);
-         //tastenstatusarray[i].tasten_history |= tastencode; // pin-nummer von $element i
-        tastenstatusarray[i].tasten_history |= readTaste(tastenstatusarray[i].pin); // pin-nummer von $element i
+         tastenstatusarray[i].tasten_history |= readTaste(tastenstatusarray[i].pin); // pin-nummer von $element i
          if ((tastenstatusarray[i].tasten_history & 0b11000111) == 0b00000111)
          {
             pressed = 1;
@@ -259,49 +280,131 @@ uint8_t checkSPItasten(void)
 
 void debounce_ISR(void)
 {
-   digitalWriteFast(OSZIA,LOW);
+//  digitalWriteFast(OSZIA,LOW);
    uint8_t old_tipptastenstatus = tipptastenstatus;
    //tipptastenstatus = checktasten();
    SPIcheck  = checkSPItasten(); 
-   digitalWriteFast(OSZIA,HIGH);
-   analogWrite(I_OUT, get_analogresult(0));
-   analogWrite(U_OUT, get_analogresult(1));
+ //  digitalWriteFast(OSZIA,HIGH);
    
+   analogWrite(I_OUT, get_analogresult(0));
+   
+   if (U_instrumentstatus & (1 << POTENTIAL_BIT))
+   {
+      if(since_P < POTENTIAL_ZEIT)
+      {
+         analogWrite(POTENTIAL_OUT, potential); // Potential anzeigen
+      }
+      else
+      {
+         since_P = 0; // Anzeigezeit beenden
+         U_instrumentstatus &= ~(1 << POTENTIAL_BIT); // 
+      }
+       
+   }
+   else // Ausgangsspannung anzeigen
+   {
+      since_P = 0; // Potential anzeigen unterdrücken
+ 
+      analogWrite(U_OUT, get_analogresult(1));
+      
+   }
+   
+  
+   
+   
+   
+//   analogWrite(U_OUT, 1000);
 }
 
-void drehgeber_ISR(void)
+void DREHGEBER0_ISR(void) // I
 {
    //digitalWriteFast(OSZIA,LOW);
-   if (digitalReadFast(DREHGEBER_B) == 0) //  Impuls B ist 0,  kommt spaeter: RI A
+   if (digitalReadFast(DREHGEBER0_B) == 0) //  Impuls B ist 0,  kommt spaeter: RI A
    {
-      if (drehgeber_count < DREHGEBER_ANZ_POS - 10)
+      if (drehgeber0_count < DREHGEBER0_ANZ_POS - 10)
       {
-         drehgeber_dir = 0;
-         drehgeber_count += 10;
+         drehgeber0_dir = 0;
+         drehgeber0_count += 10;
       }
-      inc_targetvalue(1, 16);
+      inc_targetvalue(0, 10);
    }
    else // //  Impuls B ist 1,  war frueher:RI B
    {
-      if (drehgeber_count > 10)
+      if (drehgeber0_count > 10)
       {
-         drehgeber_dir = 1;
-         drehgeber_count -= 10;
+         drehgeber0_dir = 1;
+         drehgeber0_count -= 10;
       }
-      dec_targetvalue(1, 16);
+      dec_targetvalue(0, 10);
    }
+   
+   
    //digitalWriteFast(OSZIA,HIGH);
 }
+
+void DREHGEBER1_ISR(void) // U
+{
+   //digitalWriteFast(OSZIA,LOW);
+   if (digitalReadFast(DREHGEBER1_B) == 0) //  Impuls B ist 0,  kommt spaeter: RI A
+   {
+      if (drehgeber1_count < DREHGEBER1_ANZ_POS - 10)
+      {
+         drehgeber1_dir = 0;
+         drehgeber1_count += 10;
+      }
+      inc_targetvalue(1, 10);
+   }
+   else // //  Impuls B ist 1,  war frueher:RI B
+   {
+      if (drehgeber1_count > 10)
+      {
+         drehgeber1_dir = 1;
+         drehgeber1_count -= 10;
+      }
+      dec_targetvalue(1, 10);
+   }
+   
+   
+   //digitalWriteFast(OSZIA,HIGH);
+}
+
+void DREHGEBER2_ISR(void) // U
+{
+   //digitalWriteFast(OSZIA,LOW);
+   if (digitalReadFast(DREHGEBER2_B) == 0) //  Impuls B ist 0,  kommt spaeter: RI A
+   {
+      if (drehgeber2_count < DREHGEBER2_ANZ_POS - 10)
+      {
+         drehgeber2_dir = 0;
+         drehgeber2_count += 10;
+      }
+      potential += 10;
+   }
+   else // //  Impuls B ist 1,  war frueher:RI B
+   {
+      if (drehgeber2_count > 10)
+      {
+         drehgeber2_dir = 1;
+         drehgeber2_count -= 10;
+      }
+      potential -= 10;
+   }
+   since_P = 0;
+   U_instrumentcounter = 0; // Anzeigezeit reset
+   U_instrumentstatus |= (1 << POTENTIAL_BIT); // Potential anzeigen
+   //digitalWriteFast(OSZIA,HIGH);
+}
+
+
 
 
 
 void setup()
 {
    Serial.begin(38400);
-   // !!! Help: http://bit.ly/2l2pqAL
    pinMode(OSZIA,OUTPUT);
    digitalWriteFast(OSZIA,HIGH);
-   loopLED = 8;
+   loopLED = 18;
    // LCD
    pinMode(LCD_RSDS_PIN, OUTPUT);
    pinMode(LCD_ENABLE_PIN, OUTPUT);
@@ -314,19 +417,30 @@ void setup()
    analogWriteResolution(12);
    
    // example
-   pinMode(readPin, INPUT);
-   pinMode(readPin2, INPUT);
+ //  pinMode(readPin, INPUT);
+ //  pinMode(readPin2, INPUT);
    
-   pinMode(readPin3, INPUT);
+  // pinMode(readPin3, INPUT);
    
    //pinMode(9, INPUT);
    
    // Drehgeber
-   pinMode(DREHGEBER_A,INPUT); // Kanal A
-   attachInterrupt(DREHGEBER_A, drehgeber_ISR, FALLING); //
-   pinMode(DREHGEBER_B,INPUT); // Kanal B
+   pinMode(DREHGEBER0_A,INPUT); // Kanal A
+   pinMode(DREHGEBER0_A,INPUT_PULLUP); // HI
+   attachInterrupt(DREHGEBER0_A, DREHGEBER0_ISR, FALLING); //
+   pinMode(DREHGEBER0_B,INPUT); // Kanal B
+   pinMode(DREHGEBER0_B,INPUT_PULLUP); // HI
    
+   
+   pinMode(DREHGEBER1_A,INPUT); // Kanal A
+   pinMode(DREHGEBER1_A,INPUT_PULLUP); // HI
+   attachInterrupt(DREHGEBER1_A, DREHGEBER1_ISR, FALLING); //
+   pinMode(DREHGEBER1_B,INPUT); // Kanal B
+   pinMode(DREHGEBER1_B,INPUT_PULLUP); // HI
+
    pinMode(TONE, OUTPUT);
+   
+   pinMode(22, OUTPUT);
    
    // debounce
    
@@ -336,25 +450,39 @@ void setup()
       tastenstatusarray[i].pressed = 0;
       tastenstatusarray[i].pin = 0xFF;
    }
-   tastenstatusarray[0].pin = 5;
-   pinMode(5,INPUT); // Taste
-   tastenstatusarray[1].pin = 6;
-   pinMode(6,INPUT); // Taste
-   tastenstatusarray[2].pin = 2;
-  // pinMode(2,INPUT); // Taste
+   
+   // Tasten
+   /*
+    // Umschalter Bereich
+    #define UD_BEREICH_UP      0
+    #define UD_BEREICH_DOWN    1
+    
+    // ON OFF 
+    #define UD_ON_OFF_UP       2
+    #define UD_ON_OFF_DOWN     3
+    
+    // Switch Potential 
+    #define UD_POT_ON          4
+    #define UD_POT_OFF         5
+    */
+   tastenstatusarray[0].pin = UD_BEREICH_UP;
+   tastenstatusarray[1].pin = UD_BEREICH_DOWN;
+   
+   tastenstatusarray[2].pin = UD_ON_OFF_UP;
+   tastenstatusarray[3].pin = UD_ON_OFF_DOWN;
+
+   tastenstatusarray[4].pin = UD_POT_ON;
+   tastenstatusarray[5].pin = UD_POT_OFF;
 
    //
    
    // SPI
     
-   lcd_initialize(LCD_FUNCTION_8x2, LCD_CMD_ENTRY_INC, LCD_CMD_ON);
    
    pinMode(U_OUT,OUTPUT);
    analogWriteFrequency(U_OUT, 10000);
    
 
-   _delay_ms(100);
-   lcd_puts("Teensy");
    
    init_analog(); 
    
@@ -373,8 +501,17 @@ void setup()
    
    debouncetimer.begin(debounce_ISR,1000);
   
+   U_soll = U_START;// * U_KORR; // 10V
+   set_target_adc_val(1,U_soll);
    
+   I_soll = I_START; // 100mA
    
+   set_target_adc_val(0,I_soll);
+   
+   lcd_initialize(LCD_FUNCTION_8x2, LCD_CMD_ENTRY_INC, LCD_CMD_ON);
+   _delay_ms(100);
+   lcd_puts("Teensy");
+
 }
 void loop()
 {
@@ -382,20 +519,27 @@ void loop()
    int n;
    if (sinceblink > 1000) 
    {  
+      lcd_gotoxy(19,1);
+      lcd_putc(' ');
+      
+      lcd_gotoxy(16,3);
+      lcd_puthex(loopcontrol);
+      loopcontrol = 0;
       // sine wave
+      /*
       sinval = sin(phase) * 400.0 + 800.0;
       phase = phase + 0.2;
       if (phase >= twopi)
       {
          phase = 0;
       }
-  //    set_target_adc_val(1,sinval);
-  //    Serial.printf("sine wave: phase: \t%2.2f\t sin: \t%2.2f \t",phase, sin(phase));
-   //   Serial.println(val);
+      //    set_target_adc_val(1,sinval);
+      //    Serial.printf("sine wave: phase: \t%2.2f\t sin: \t%2.2f \t",phase, sin(phase));
+      //   Serial.println(val);
       //mcp0.gpioPort(0xFFFF);
       // end sine wave
-      
- //     tone(TONE,400,300);
+      */
+      tone(TONE,400,300);
       if (digitalRead(loopLED) == 1)
       {
          //Serial.printf("LED ON\n");
@@ -406,13 +550,13 @@ void loop()
          //mcp0.gpioDigitalWrite((regA ),LOW);
          //mcp0.gpioPort(0xFFFF);
          /*
-         for (int i=0;i<16;i++)
-         {
-            mcp0.gpioDigitalWrite(i,LOW);
-           // delay(150);
-         }
+          for (int i=0;i<16;i++)
+          {
+          mcp0.gpioDigitalWrite(i,LOW);
+          // delay(150);
+          }
           */
-
+         
       }
       else
       {
@@ -422,25 +566,29 @@ void loop()
          //digitalWriteFast(SPI_CLK,HIGH);
          //mcp0.gpioDigitalWrite((regA ),HIGH);
          
-           /*
-         for (int i=0;i<16;i++)
-         {
-            mcp0.gpioDigitalWrite(i,HIGH);
-         }
+         /*
+          for (int i=0;i<16;i++)
+          {
+          mcp0.gpioDigitalWrite(i,HIGH);
+          }
           */
-
+         
       }
       
       
       // https://forum.arduino.cc/index.php?topic=353678.0
- //     SPI.beginTransaction(SPISettings(20000000, MSBFIRST, SPI_MODE0));
+      //     SPI.beginTransaction(SPISettings(20000000, MSBFIRST, SPI_MODE0));
       //mcp0.gpioPort((regA << 8));
-      regB = 0x01;
+      regB = 0x00;
       uint8_t regBB = (regB & 0x07)<< 5;
       mcp0.gpioWritePortA((regA | regBB));
+      //   uint8_t rr = (regA | regBB);
+      //    lcd_gotoxy(12,0);
+      //    lcd_puthex(regA);
+      //    lcd_puthex(rr);
       
       //uint16_t portdata = mcp0.exchangeGpioPort((regA << 8));
-//    
+      //    
       regB++;
       
       
@@ -452,7 +600,8 @@ void loop()
       {
          regA = 1;
       }
-   
+//      lcd_gotoxy(16,0);
+ //     lcd_puthex(regA);
       sinceblink = 0;
       
       outbuffer[0] = 0;
@@ -460,43 +609,58 @@ void loop()
       outbuffer[2] = U_Pot & 0x00FF;
       
       lcd_gotoxy(0,0);
-      //lcd_puts("U: ");
+      lcd_putc('U');
       
       uint16_t U = get_analogresult(1);
-      lcd_putint12(U);
+ //     lcd_putint12(U);
       lcd_putc(' ');
       uint16_t Udisp = adc_u_to_disp(U);
-      int_to_dispstr(Udisp,buf,1);
-      lcd_putint12(adc_u_to_disp(U));
-      lcd_putc(' ');
-      lcd_puthex(regB);
+      
+ //     int_to_dispstr(Udisp,buf,1);
+      
+      int_to_dispstr(U/2,buf,2);
+      lcd_puts(buf);
+      lcd_putc('V');
+  //    lcd_putint12(adc_u_to_disp(U));
+      lcd_putc('*');
+      //lcd_puts(Udisp);
+      //lcd_putint(
+ //     lcd_putint12(U_soll);
+      //lcd_puthex(regB);
       //lcd_puts(buf);
       // "sincePrint" auto-increases
-      lcd_gotoxy(0,0);
+      
+      
+      lcd_gotoxy(15,0);
+      lcd_putc('d');
+      lcd_putint12(get_dacval());
+      
+      
+      
       //lcd_puts("adc: ");
       int out0 = outbuffer[2];
       // val = analogRead(0);
       //val = target_val[0];
       //lcd_putint12(val);
       //lcd_putint12(out0);
-
+      
       input = inbuffer[4];
       input <<= 8;
       input += inbuffer[5];
-  //    Serial.print("analog 0 is: ");
-   //   Serial.println(val);
+      //    Serial.print("analog 0 is: ");
+      //   Serial.println(val);
       
       
-   //   Serial.printf("\n");
+      //   Serial.printf("\n");
       
       
-       
+      
       //`
       adc->printError();
       adc->resetError();
       
       n = RawHID.send((void*)outbuffer, 100);
-     
+      
       if (n > 0) 
       {
          Serial.print(F("Transmit packet "));
@@ -511,113 +675,194 @@ void loop()
       
       packetCount = packetCount + 1;
       /*
-      lcd_gotoxy(0,1);
-      lcd_puts("in: ");
-      lcd_putc('L');
-      lcd_puthex(inbuffer[4]);
-      lcd_putc(' ');
-      lcd_putc('H');
-      lcd_puthex(inbuffer[5]);
-      lcd_putc(' ');
-      lcd_puts("W: ");
+       lcd_gotoxy(0,1);
+       lcd_puts("in: ");
+       lcd_putc('L');
+       lcd_puthex(inbuffer[4]);
+       lcd_putc(' ');
+       lcd_putc('H');
+       lcd_puthex(inbuffer[5]);
+       lcd_putc(' ');
+       lcd_puts("W: ");
        */
       /*
-      int incontrol = (inbuffer[4]<<8) + inbuffer[5];
-      //set_target_U(incontrol);
-      //lcd_putint12(incontrol);
-      Serial.printf("input wert:\t %d\n",incontrol);
-      analogWrite(9,incontrol);
+       int incontrol = (inbuffer[4]<<8) + inbuffer[5];
+       //set_target_U(incontrol);
+       //lcd_putint12(incontrol);
+       Serial.printf("input wert:\t %d\n",incontrol);
+       analogWrite(9,incontrol);
        
        
        */
       uint16_t temp = 0;
       
-    //  adc->disableInterrupts(ADC_0);
-    //  adc->disableInterrupts(ADC_1);
-   //   temp = analogRead(9);
-   //   adc->enableInterrupts(ADC_0);
-   //   adc->enableInterrupts(ADC_1);
+      //  adc->disableInterrupts(ADC_0);
+      //  adc->disableInterrupts(ADC_1);
+      //   temp = analogRead(9);
+      //   adc->enableInterrupts(ADC_0);
+      //   adc->enableInterrupts(ADC_1);
       
-  //    lcd_gotoxy(2,2);
-  //    lcd_putint12(temp);
+      //    lcd_gotoxy(2,2);
+      //    lcd_putint12(temp);
 #pragma mark debounce
       lcd_gotoxy(12,1);
       lcd_puthex(SPItastenstatus);
       SPItastenstatus=0;
+      
       lcd_gotoxy(0,1);
       lcd_putc('d');
-      lcd_putint12(drehgeber_count);
-      lcd_putc('t');
-      lcd_puthex(tipptastenstatus);
+      lcd_putc(' ');
+      lcd_putint12(drehgeber1_count);
+      lcd_putc(' ');
+      lcd_putc('c');
+      lcd_puthex(SPIcheck);
       
+//      lcd_gotoxy(18,1);
+//      lcd_puthex(tastenbitstatus);
+      tastenbitstatus = 0;
+
+      
+      
+      /*
+       // Umschalter Bereich
+       #define UD_BEREICH_UP      0
+       #define UD_BEREICH_DOWN    1
+       
+       // ON OFF 
+       #define UD_ON_OFF_UP       2
+       #define UD_ON_OFF_DOWN     3
+       
+       // Switch Potential 
+       #define UD_POT_ON          4
+       #define UD_POT_OFF         5
+
+       */
       // Taste[0]
-      if (tastenstatusarray[0].pressed) // Taste gedrueckt U+
+      if (tastenstatusarray[0].pressed) // Taste gedrueckt Bereich up
       {
-         lcd_gotoxy(14,1);
+         lcd_gotoxy(19,1);
          lcd_putc('A');
          inc_targetvalue(1, 8);
          tastenstatusarray[0].pressed = 0;
+         
+         lcd_initialize(LCD_FUNCTION_8x2, LCD_CMD_ENTRY_INC, LCD_CMD_ON);
+         _delay_ms(100);
+         lcd_puts("Teensy");
+
       }
       else
       {
-         lcd_gotoxy(14,1);
-         lcd_putc(' ');
+ //        lcd_gotoxy(14,1);
+ //        lcd_putc(' ');
       }
       
- 
+      
       // Taste[1]
-      if (tastenstatusarray[1].pressed) // Taste gedrueckt U-
+      if (tastenstatusarray[1].pressed) // Taste gedrueckt Bereich down
       {
-         lcd_gotoxy(15,1);
+         lcd_gotoxy(19,1);
          lcd_putc('B');
+  //       lcd_puthex(tastenstatusarray[1].pin);
          dec_targetvalue(1, 8);
          tastenstatusarray[1].pressed = 0;
          
       }
       else
       {
-         lcd_gotoxy(15,1);
-         lcd_putc(' ');
+ //        lcd_gotoxy(14,1);
+ //        lcd_putc(' ');
       }
       
-
-      lcd_gotoxy(18,1);
-      lcd_puthex(tastenbitstatus);
-      tastenbitstatus = 0;
-      
-      //lcd_putint1(drehgeber_dir);
-     // if ((timercounter % 1000) == 0)
+      // Taste[2]
+      if (tastenstatusarray[2].pressed) // Taste gedrueckt ON
       {
-         lcd_putc(' ');
+         lcd_gotoxy(19,1);
+         lcd_putc('C');
+         
+         //dec_targetvalue(1, 8);
+         tastenstatusarray[2].pressed = 0;
+         
+      }
+      else
+      {
+ //        lcd_gotoxy(15,1);
+ //        lcd_putc(' ');
+      }
+      
+      if (tastenstatusarray[3].pressed) // Taste gedrueckt OFF
+      {
+         //lcd_gotoxy(10,1);
+         //lcd_puthex(tastenstatusarray[3].pin);
+
+         lcd_gotoxy(19,1);
+         lcd_putc('D');
+         //dec_targetvalue(1, 8);
+         tastenstatusarray[3].pressed = 0;
+         
+      }
+      else
+      {
+ //        lcd_gotoxy(15,1);
+//         lcd_putc(' ');
+      }
+
+      if (tastenstatusarray[4].pressed) // Taste gedrueckt Potential on
+      {
+         lcd_gotoxy(19,1);
+         lcd_putc('E');
+         //dec_targetvalue(1, 8);
+         tastenstatusarray[4].pressed = 0;
+         
+      }
+      else
+      {
+ //        lcd_gotoxy(14,1);
+//         lcd_putc(' ');
+      }
+ 
+      if (tastenstatusarray[5].pressed) // Taste gedrueckt Potential off
+      {
+         lcd_gotoxy(19,1);
+         lcd_putc('F');
+         //dec_targetvalue(1, 8);
+         tastenstatusarray[5].pressed = 0;
+         
+      }
+      else
+      {
+  //       lcd_gotoxy(14,1);
+ //        lcd_putc(' ');
+      }
+
+      
+      
+      
+       
+      //lcd_putint1(drehgeber1_dir);
+      // if ((timercounter % 1000) == 0)
+      {
+         //lcd_putc(' ');
          
       }
       
-      lcd_gotoxy(18, 0);
+      lcd_gotoxy(12, 0);
       //lcd_puts("cc:");
       lcd_putint2(get_currentcontrol());
       
-  
+      
       lcd_gotoxy(0,2);
       lcd_putc('I');
-      lcd_putc(' ');
-      lcd_puts(" ");
-      //lcd_putint12(get_dacval());
-      lcd_puts("    ");
       lcd_putc(' ');
       lcd_puts("a");
       lcd_putint12(get_analogresult(0));
       lcd_putc(' ');
       lcd_puts("t");
       lcd_putint12(get_targetvalue(0));
-
       
-     // lcd_putc(' ');
+      
+      // lcd_putc(' ');
       lcd_gotoxy(0,3);
       lcd_putc('U');
-      lcd_putc(' ');
-      lcd_puts("d");
-      lcd_putint12(get_dacval());
-
       lcd_putc(' ');
       lcd_puts("a");
       lcd_putint12(get_analogresult(1));
@@ -626,11 +871,12 @@ void loop()
       lcd_putint12(get_targetvalue(1));
       
       
-     
+      
    } // if sinceblink
-   
-   if (sinceusb > 100)
+#pragma mark USB   
+//   if (sinceusb > 100)
    {
+      sinceusb = 0;
       //digitalWriteFast(OSZIA,LOW);
       r = RawHID.recv((void*)inbuffer, 0);
       //digitalWriteFast(OSZIA,HIGH);
@@ -638,18 +884,13 @@ void loop()
       {
          //Serial.println("Print every 2.5 seconds");
          //Serial.printf("usb_rawhid_recv: %x\n",r);
-         int in_Usoll = (inbuffer[4]<<8) + inbuffer[5];
+         U_soll = ((inbuffer[4]<<8) + inbuffer[5]) * U_KORR;
          
-         //lcd_putint12(in_Usoll);
-         Serial.printf("in_Usoll:\t %d\n",in_Usoll);
-         analogWrite(9,in_Usoll);
+         I_soll = (inbuffer[6]<<8) + inbuffer[7];
          
-         set_target_adc_val(1,in_Usoll);
-         
-          int in_Isoll = (inbuffer[6]<<8) + inbuffer[7];
-         
-         set_target_adc_val(0,in_Isoll);
-         
+         set_target_adc_val(0,I_soll);
+         set_target_adc_val(1,U_soll);
+         /*
          uint8_t i=0;
          //Serial.printf("inbuffer:\t");
          while (i<10)
@@ -657,8 +898,15 @@ void loop()
             //Serial.printf("%x\t",inbuffer[i]);
             i++;
          }
-          
+          */
+         
+         
       }
+      //Serial.printf("U_soll:\t %d\n",U_soll);
+      //analogWrite(9,U_soll);
+      
+      
+
       
    }
    

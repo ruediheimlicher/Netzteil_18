@@ -51,6 +51,7 @@ uint8_t read_button(void)
 {
    return 1;
 }
+
 void update_button(uint16_t *button_history)
 {
    *button_history = *button_history << 1;
