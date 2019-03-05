@@ -41,7 +41,7 @@
 
 #define SH_CIR_PROT 630 // vorher: 3700 (??)
 
-#define U_KORR 1.0  //  1.25
+#define U_KORR 1.21  //  Kalib Messinstrument
 
 /* ================= uncomment this section for the model 30V 2.0A */
 

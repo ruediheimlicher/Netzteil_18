@@ -78,6 +78,7 @@ int8_t r;
 volatile uint8_t inbuffer[USB_DATENBREITE]={};
 volatile uint8_t outbuffer[USB_DATENBREITE]={};
 elapsedMillis sinceblink;
+elapsedMillis sincelcd;
 elapsedMillis sinceusb;
 
 
@@ -287,7 +288,7 @@ void debounce_ISR(void)
  //  digitalWriteFast(OSZIA,HIGH);
    
    analogWrite(I_OUT, get_analogresult(0));
-   
+   /*
    if (U_instrumentstatus & (1 << POTENTIAL_BIT))
    {
       if(since_P < POTENTIAL_ZEIT)
@@ -305,11 +306,12 @@ void debounce_ISR(void)
    {
       since_P = 0; // Potential anzeigen unterdrücken
  
-      analogWrite(U_OUT, get_analogresult(1));
+      analogWrite(U_OUT, get_analogresult(1) * U_KORR);
       
    }
-   
-  
+   */
+  analogWrite(U_OUT, get_analogresult(1) * U_KORR); 
+  analogWrite(POTENTIAL_OUT, potential ); // Potential anzeigen
    
    
    
@@ -391,7 +393,7 @@ void DREHGEBER2_ISR(void) // U
    }
    since_P = 0;
    U_instrumentcounter = 0; // Anzeigezeit reset
-   U_instrumentstatus |= (1 << POTENTIAL_BIT); // Potential anzeigen
+ //  U_instrumentstatus |= (1 << POTENTIAL_BIT); // Potential anzeigen
    //digitalWriteFast(OSZIA,HIGH);
 }
 
@@ -438,9 +440,16 @@ void setup()
    pinMode(DREHGEBER1_B,INPUT); // Kanal B
    pinMode(DREHGEBER1_B,INPUT_PULLUP); // HI
 
+      
+   pinMode(DREHGEBER2_A,INPUT); // Kanal A
+   pinMode(DREHGEBER2_A,INPUT_PULLUP); // HI
+   attachInterrupt(DREHGEBER2_A, DREHGEBER2_ISR, FALLING); //
+   pinMode(DREHGEBER2_B,INPUT); // Kanal B
+   pinMode(DREHGEBER2_B,INPUT_PULLUP); // HI
+
    pinMode(TONE, OUTPUT);
    
-   pinMode(22, OUTPUT);
+   pinMode(POTENTIAL_OUT, OUTPUT);
    
    // debounce
    
@@ -501,7 +510,7 @@ void setup()
    
    debouncetimer.begin(debounce_ISR,1000);
   
-   U_soll = U_START;// * U_KORR; // 10V
+   U_soll = U_START;//  10V
    set_target_adc_val(1,U_soll);
    
    I_soll = I_START; // 100mA
@@ -522,7 +531,7 @@ void loop()
       lcd_gotoxy(19,1);
       lcd_putc(' ');
       
-      lcd_gotoxy(16,3);
+      lcd_gotoxy(16,0);
       lcd_puthex(loopcontrol);
       loopcontrol = 0;
       // sine wave
@@ -539,7 +548,7 @@ void loop()
       //mcp0.gpioPort(0xFFFF);
       // end sine wave
       */
-      tone(TONE,400,300);
+      //tone(TONE,400,300);
       if (digitalRead(loopLED) == 1)
       {
          //Serial.printf("LED ON\n");
@@ -579,7 +588,7 @@ void loop()
       // https://forum.arduino.cc/index.php?topic=353678.0
       //     SPI.beginTransaction(SPISettings(20000000, MSBFIRST, SPI_MODE0));
       //mcp0.gpioPort((regA << 8));
-      regB = 0x00;
+      regB = 0x01;
       uint8_t regBB = (regB & 0x07)<< 5;
       mcp0.gpioWritePortA((regA | regBB));
       //   uint8_t rr = (regA | regBB);
@@ -674,6 +683,7 @@ void loop()
       Serial.printf("outH: %02X outL: %02X wert: \t%d\n",outbuffer[1],outbuffer[2],outcontrol);
       
       packetCount = packetCount + 1;
+      
       /*
        lcd_gotoxy(0,1);
        lcd_puts("in: ");
@@ -748,7 +758,7 @@ void loop()
          lcd_initialize(LCD_FUNCTION_8x2, LCD_CMD_ENTRY_INC, LCD_CMD_ON);
          _delay_ms(100);
          lcd_puts("Teensy");
-
+         
       }
       else
       {
@@ -847,36 +857,47 @@ void loop()
       
       lcd_gotoxy(12, 0);
       //lcd_puts("cc:");
-      lcd_putint2(get_currentcontrol());
       
+       
       
-      lcd_gotoxy(0,2);
-      lcd_putc('I');
-      lcd_putc(' ');
-      lcd_puts("a");
-      lcd_putint12(get_analogresult(0));
-      lcd_putc(' ');
-      lcd_puts("t");
-      lcd_putint12(get_targetvalue(0));
-      
-      
-      // lcd_putc(' ');
-      lcd_gotoxy(0,3);
-      lcd_putc('U');
-      lcd_putc(' ');
-      lcd_puts("a");
-      lcd_putint12(get_analogresult(1));
-      lcd_putc(' ');
-      lcd_puts("t");
-      lcd_putint12(get_targetvalue(1));
-      
-      
-      
-   } // if sinceblink
+    } // if sinceblink
+
+if (sincelcd > 100) // LCD aktualisieren
+{
+   sincelcd = 0;
+   lcd_gotoxy(0,2);
+   lcd_putc('I');
+   lcd_putc(' ');
+   lcd_puts("a");
+   lcd_putint12(get_analogresult(0));
+   lcd_putc(' ');
+   lcd_puts("t");
+   lcd_putint12(get_targetvalue(0));
+   
+   
+   // lcd_putc(' ');
+   lcd_gotoxy(0,3);
+   lcd_putc('U');
+   lcd_putc(' ');
+   lcd_puts("a");
+   lcd_putint12(get_analogresult(1));
+   lcd_putc(' ');
+   lcd_puts("t");
+   lcd_putint12(get_targetvalue(1));
+   lcd_putc(' ');
+   lcd_putint2(get_currentcontrol());
+   if (get_currentcontrol())
+   {
+      tone(TONE,400,300);
+   }
+
+   
+}
+
 #pragma mark USB   
 //   if (sinceusb > 100)
    {
-      sinceusb = 0;
+      //sinceusb = 0;
       //digitalWriteFast(OSZIA,LOW);
       r = RawHID.recv((void*)inbuffer, 0);
       //digitalWriteFast(OSZIA,HIGH);
@@ -884,7 +905,7 @@ void loop()
       {
          //Serial.println("Print every 2.5 seconds");
          //Serial.printf("usb_rawhid_recv: %x\n",r);
-         U_soll = ((inbuffer[4]<<8) + inbuffer[5]) * U_KORR;
+         U_soll = ((inbuffer[4]<<8) + inbuffer[5]) ;
          
          I_soll = (inbuffer[6]<<8) + inbuffer[7];
          

@@ -300,19 +300,21 @@ int16_t adc_u_to_disp(int16_t adcunits)
 void int_to_dispstr(uint16_t inum,char *outbuf,int8_t decimalpoint_pos)
 {
    int8_t i,j;
-   char chbuf[8];
+   char chbuf[10];
    itoa(inum,chbuf,10); // convert integer to string
    i=strlen(chbuf);
-   if (i>3) i=3; //overflow protection
+   if (i>4) i=4; //overflow protection
    strcpy(outbuf,"   0"); //decimalpoint_pos==0
    if (decimalpoint_pos==1) strcpy(outbuf," 0.0");
    if (decimalpoint_pos==2) strcpy(outbuf,"0.00");
-   j=4;
-   while(i){
+   j=5;
+   while(i)
+   {
       outbuf[j-1]=chbuf[i-1];
       i--;
       j--;
-      if (j==4-decimalpoint_pos){
+      if (j==5-decimalpoint_pos)
+      {
          // jump over the pre-set dot
          j--;
       }
