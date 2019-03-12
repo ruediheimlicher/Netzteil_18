@@ -131,6 +131,9 @@ volatile uint16_t drehgeber2_count = 0;
 volatile uint8_t U_instrumentstatus = 0; // Anzeige U-Instrument: Potential oder Ausgangsspannung
 volatile uint16_t U_instrumentcounter = 0; // Counter fuer Anzeigezeit
 
+volatile uint8_t bereichpos = 1;
+
+
 uint8_t timercounter=0;
 uint16_t uptaste_history = 0;
 uint16_t downtaste_history = 0;
@@ -589,6 +592,7 @@ void loop()
       //     SPI.beginTransaction(SPISettings(20000000, MSBFIRST, SPI_MODE0));
       //mcp0.gpioPort((regA << 8));
       regB = 0x01;
+      regB = bereichpos;
       uint8_t regBB = (regB & 0x07)<< 5;
       mcp0.gpioWritePortA((regA | regBB));
       //   uint8_t rr = (regA | regBB);
@@ -752,12 +756,12 @@ void loop()
       {
          lcd_gotoxy(19,1);
          lcd_putc('A');
-         inc_targetvalue(1, 8);
-         tastenstatusarray[0].pressed = 0;
+//         inc_targetvalue(1, 8);
+          tastenstatusarray[0].pressed = 0;
          
          lcd_initialize(LCD_FUNCTION_8x2, LCD_CMD_ENTRY_INC, LCD_CMD_ON);
          _delay_ms(100);
-         lcd_puts("Teensy");
+   //      lcd_puts("Teensy");
          
       }
       else
@@ -773,7 +777,8 @@ void loop()
          lcd_gotoxy(19,1);
          lcd_putc('B');
   //       lcd_puthex(tastenstatusarray[1].pin);
-         dec_targetvalue(1, 8);
+  //       dec_targetvalue(1, 8);
+
          tastenstatusarray[1].pressed = 0;
          
       }
@@ -788,7 +793,12 @@ void loop()
       {
          lcd_gotoxy(19,1);
          lcd_putc('C');
-         
+         if (bereichpos )
+         {
+            bereichpos--;
+         }
+
+
          //dec_targetvalue(1, 8);
          tastenstatusarray[2].pressed = 0;
          
@@ -803,6 +813,10 @@ void loop()
       {
          //lcd_gotoxy(10,1);
          //lcd_puthex(tastenstatusarray[3].pin);
+         if (bereichpos < 4)
+         {
+            bereichpos++;
+         }
 
          lcd_gotoxy(19,1);
          lcd_putc('D');
