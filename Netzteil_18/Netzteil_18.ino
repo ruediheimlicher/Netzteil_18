@@ -103,10 +103,6 @@ volatile int16_t analog_result[2];
 
 volatile int16_t potential = P_OFFSET;
 
-int  readPin = A9; // ADC0
-
-int readPin2 = A2; // ADC0 or ADC1
-int readPin3 = A3; // ADC1
 
 //ADC::Sync_result result;
 
@@ -126,7 +122,7 @@ uint8_t drehgeber1_dir = 0; //Drehrichtung
 volatile uint16_t drehgeber1_count = 0;
 
 uint8_t drehgeber2_dir = 0; //Drehrichtung
-volatile uint16_t drehgeber2_count = 0;
+volatile uint16_t drehgeber2_count = 2000;
 
 volatile uint8_t U_instrumentstatus = 0; // Anzeige U-Instrument: Potential oder Ausgangsspannung
 volatile uint16_t U_instrumentcounter = 0; // Counter fuer Anzeigezeit
@@ -290,6 +286,8 @@ void debounce_ISR(void)
    SPIcheck  = checkSPItasten(); 
  //  digitalWriteFast(OSZIA,HIGH);
    
+   
+   
    analogWrite(I_OUT, get_analogresult(0));
    /*
    if (U_instrumentstatus & (1 << POTENTIAL_BIT))
@@ -378,21 +376,33 @@ void DREHGEBER2_ISR(void) // U
    //digitalWriteFast(OSZIA,LOW);
    if (digitalReadFast(DREHGEBER2_B) == 0) //  Impuls B ist 0,  kommt spaeter: RI A
    {
+      /*
       if (drehgeber2_count < DREHGEBER2_ANZ_POS - 10)
       {
          drehgeber2_dir = 0;
          drehgeber2_count += 10;
+         
       }
+       */
+      if (potential < DREHGEBER2_ANZ_POS - 10)
+      {
       potential += 10;
+      }
    }
    else // //  Impuls B ist 1,  war frueher:RI B
    {
+      /*
       if (drehgeber2_count > 10)
       {
          drehgeber2_dir = 1;
          drehgeber2_count -= 10;
+         
       }
+       */
+      if (potential > 10)
+      {
       potential -= 10;
+      }
    }
    since_P = 0;
    U_instrumentcounter = 0; // Anzeigezeit reset
@@ -421,13 +431,6 @@ void setup()
    analogReadResolution(12);
    analogWriteResolution(12);
    
-   // example
- //  pinMode(readPin, INPUT);
- //  pinMode(readPin2, INPUT);
-   
-  // pinMode(readPin3, INPUT);
-   
-   //pinMode(9, INPUT);
    
    // Drehgeber
    pinMode(DREHGEBER0_A,INPUT); // Kanal A
@@ -534,8 +537,8 @@ void loop()
       lcd_gotoxy(19,1);
       lcd_putc(' ');
       
-      lcd_gotoxy(16,0);
-      lcd_puthex(loopcontrol);
+    //  lcd_gotoxy(16,0);
+    //  lcd_puthex(loopcontrol);
       loopcontrol = 0;
       // sine wave
       /*
@@ -644,10 +647,7 @@ void loop()
       // "sincePrint" auto-increases
       
       
-      lcd_gotoxy(15,0);
-      lcd_putc('d');
-      lcd_putint12(get_dacval());
-      
+       
       
       
       //lcd_puts("adc: ");
@@ -904,6 +904,11 @@ if (sincelcd > 100) // LCD aktualisieren
    {
       tone(TONE,400,300);
    }
+
+   lcd_gotoxy(15,0);
+   lcd_putc('d');
+   //lcd_putint12(get_dacval());
+   lcd_putint12(potential);
 
    
 }
