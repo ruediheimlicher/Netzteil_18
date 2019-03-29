@@ -81,6 +81,9 @@ elapsedMillis sinceblink;
 elapsedMillis sincelcd;
 elapsedMillis sinceusb;
 
+elapsedMillis sincepot; // Zeitdauer der Anzeige des Potentialwertes
+
+
 
 elapsedMillis since_U;  // Zeit Drehgeberimpuls U
 elapsedMillis since_I;  // Zeit Drehgeberimpuls I
@@ -97,6 +100,9 @@ int U_Pot;
 //int U_soll;
 //int in_Isoll;
 
+#define MAX_U     3200
+#define MAX_I     3200
+#define MAX_POT   3200
 uint16_t input =0;
 
 volatile int16_t analog_result[2]; 
@@ -138,6 +144,10 @@ volatile uint8_t tipptastenstatus = 0;
 
 volatile uint8_t SPItastenstatus = 0;
 volatile uint8_t SPIcheck=0;
+
+volatile uint8_t anzeigestatus = 0;
+#define potential_on  0
+
 
 #define I_OUT  23 // A9
 #define U_OUT  6
@@ -285,8 +295,22 @@ void debounce_ISR(void)
    //tipptastenstatus = checktasten();
    SPIcheck  = checkSPItasten(); 
  //  digitalWriteFast(OSZIA,HIGH);
-   
-   
+   /*
+   if ((digitalReadFast(DREHGEBER2_A) == 1) && (digitalReadFast(DREHGEBER2_B) == 0)) //  Impuls B ist 0,  kommt spaeter: RI A
+   {
+      if (potential < MAX_POT - 10)
+      {
+         potential += 10;
+      }
+   }
+   else if ((digitalReadFast(DREHGEBER2_A) == 0) && (digitalReadFast(DREHGEBER2_B) == 1))// //  Impuls B ist 1,  war frueher:RI B
+   {
+      if (potential > 10)
+      {
+         potential -= 10;
+      }
+   }
+*/
    
    analogWrite(I_OUT, get_analogresult(0));
    /*
@@ -324,20 +348,24 @@ void DREHGEBER0_ISR(void) // I
    //digitalWriteFast(OSZIA,LOW);
    if (digitalReadFast(DREHGEBER0_B) == 0) //  Impuls B ist 0,  kommt spaeter: RI A
    {
+      /*
       if (drehgeber0_count < DREHGEBER0_ANZ_POS - 10)
       {
          drehgeber0_dir = 0;
          drehgeber0_count += 10;
       }
+       */
       inc_targetvalue(0, 10);
    }
    else // //  Impuls B ist 1,  war frueher:RI B
    {
+      /*
       if (drehgeber0_count > 10)
       {
          drehgeber0_dir = 1;
          drehgeber0_count -= 10;
       }
+       */
       dec_targetvalue(0, 10);
    }
    
@@ -350,20 +378,25 @@ void DREHGEBER1_ISR(void) // U
    //digitalWriteFast(OSZIA,LOW);
    if (digitalReadFast(DREHGEBER1_B) == 0) //  Impuls B ist 0,  kommt spaeter: RI A
    {
+      /*
       if (drehgeber1_count < DREHGEBER1_ANZ_POS - 10)
       {
          drehgeber1_dir = 0;
          drehgeber1_count += 10;
       }
+      */
+      
       inc_targetvalue(1, 10);
    }
    else // //  Impuls B ist 1,  war frueher:RI B
    {
+      /*
       if (drehgeber1_count > 10)
       {
          drehgeber1_dir = 1;
          drehgeber1_count -= 10;
       }
+       */
       dec_targetvalue(1, 10);
    }
    
@@ -376,32 +409,16 @@ void DREHGEBER2_ISR(void) // U
    //digitalWriteFast(OSZIA,LOW);
    if (digitalReadFast(DREHGEBER2_B) == 0) //  Impuls B ist 0,  kommt spaeter: RI A
    {
-      /*
-      if (drehgeber2_count < DREHGEBER2_ANZ_POS - 10)
+       if (potential < MAX_POT - 10)
       {
-         drehgeber2_dir = 0;
-         drehgeber2_count += 10;
-         
-      }
-       */
-      if (potential < DREHGEBER2_ANZ_POS - 10)
-      {
-      potential += 10;
+         potential += 10;
       }
    }
    else // //  Impuls B ist 1,  war frueher:RI B
    {
-      /*
-      if (drehgeber2_count > 10)
+       if (potential > 10)
       {
-         drehgeber2_dir = 1;
-         drehgeber2_count -= 10;
-         
-      }
-       */
-      if (potential > 10)
-      {
-      potential -= 10;
+         potential -= 10;
       }
    }
    since_P = 0;
