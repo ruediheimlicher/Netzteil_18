@@ -89,6 +89,8 @@ elapsedMillis since_U;  // Zeit Drehgeberimpuls U
 elapsedMillis since_I;  // Zeit Drehgeberimpuls I
 elapsedMillis since_P;  // Zeit Drehgeberimpuls Potential
 
+elapsedMillis since_WARN; // Zeit fuer Warnton
+
 
 
 int period = 1000;
@@ -130,8 +132,10 @@ volatile uint16_t drehgeber1_count = 0;
 uint8_t drehgeber2_dir = 0; //Drehrichtung
 volatile uint16_t drehgeber2_count = 2000;
 
-volatile uint8_t U_instrumentstatus = 0; // Anzeige U-Instrument: Potential oder Ausgangsspannung
-volatile uint16_t U_instrumentcounter = 0; // Counter fuer Anzeigezeit
+volatile uint8_t instrumentstatus = 0; // Anzeige Instrumente: Potential oder Ausgangsspannung, currentlimit oder current
+
+volatile uint16_t U_instrumentcounter = 0; // Counter fuer U-Anzeigezeit
+volatile uint16_t I_instrumentcounter = 0; // Counter fuer I-Anzeigezeit
 
 volatile uint8_t bereichpos = 1;
 
@@ -145,7 +149,7 @@ volatile uint8_t tipptastenstatus = 0;
 volatile uint8_t SPItastenstatus = 0;
 volatile uint8_t SPIcheck=0;
 
-volatile uint8_t anzeigestatus = 0;
+//volatile uint8_t anzeigestatus = 0;
 #define potential_on  0
 
 
@@ -153,7 +157,17 @@ volatile uint8_t anzeigestatus = 0;
 #define U_OUT  6
 
 
+
 volatile uint8_t loopcontrol=0;
+
+volatile uint8_t currentstatus=0; // status currentcontrol
+#define CURRENTWARNUNG              1 // Warnton einschalten
+#define CURRENTWARNUNG_ANZAHL       3 // Anz Warntoene
+#define CURRENTWARNUNG_DELAY       1000 // Abstand Warntoene
+volatile uint8_t currentcontrol_level=0; // currentcontrol von controlloop
+volatile uint16_t currentcontrolcounter = 0; // Counter fuer Warnton
+
+
 
 typedef struct
 {
@@ -234,7 +248,7 @@ uint8_t checktasten(void)
       if (tastenstatusarray[i].pin < 0xFF)
       {
          count++;
-         tastenstatusarray[i].tasten_history = tastenstatusarray[i].tasten_history << 1;
+         tastenstatusarray[i].tasten_history = (tastenstatusarray[i].tasten_history << 1);
          tastenstatusarray[i].tasten_history |= readTaste(tastenstatusarray[i].pin); // pin-nummer von $element i
          if ((tastenstatusarray[i].tasten_history & 0b11000111) == 0b00000111)
          {
@@ -314,7 +328,7 @@ void debounce_ISR(void)
    
    analogWrite(I_OUT, get_analogresult(0));
    /*
-   if (U_instrumentstatus & (1 << POTENTIAL_BIT))
+   if (instrumentstatus & (1 << POTENTIAL_BIT))
    {
       if(since_P < POTENTIAL_ZEIT)
       {
@@ -323,7 +337,7 @@ void debounce_ISR(void)
       else
       {
          since_P = 0; // Anzeigezeit beenden
-         U_instrumentstatus &= ~(1 << POTENTIAL_BIT); // 
+         instrumentstatus &= ~(1 << POTENTIAL_BIT); // 
       }
        
    }
@@ -404,7 +418,7 @@ void DREHGEBER1_ISR(void) // U
    //digitalWriteFast(OSZIA,HIGH);
 }
 
-void DREHGEBER2_ISR(void) // U
+void DREHGEBER2_ISR(void) // P
 {
    //digitalWriteFast(OSZIA,LOW);
    if (digitalReadFast(DREHGEBER2_B) == 0) //  Impuls B ist 0,  kommt spaeter: RI A
@@ -423,7 +437,7 @@ void DREHGEBER2_ISR(void) // U
    }
    since_P = 0;
    U_instrumentcounter = 0; // Anzeigezeit reset
- //  U_instrumentstatus |= (1 << POTENTIAL_BIT); // Potential anzeigen
+ //  instrumentstatus |= (1 << POTENTIAL_BIT); // Potential anzeigen
    //digitalWriteFast(OSZIA,HIGH);
 }
 
@@ -545,12 +559,55 @@ void setup()
    lcd_puts("Teensy");
 
 }
+uint8_t tempcurrentcontrol=0;
 void loop()
 {
 
    int n;
+   
+   if (tempcurrentcontrol)
+   {
+      
+      if (currentcontrol_level == 0) // Aenderung: war bisher null
+      {
+         currentstatus |=  (1<<CURRENTWARNUNG); // Warnung on
+         //
+         //tone(TONE,400,300);
+         tempcurrentcontrol = currentcontrol_level;
+      }
+   }
+   else
+   {
+      currentstatus &= ~(1<<CURRENTWARNUNG); // Warnung off
+      currentcontrolcounter = 0;
+   }
+   
+   if (tempcurrentcontrol & (1<<CURRENTWARNUNG))
+   {
+      
+      if (since_WARN > CURRENTWARNUNG_DELAY) // Delay abgelaufen. Ton
+      {
+         since_WARN = 0;
+         currentcontrolcounter++;
+         if (currentcontrolcounter < CURRENTWARNUNG_ANZAHL)
+         {
+            tone(TONE,400,300);
+         }
+         else
+         {
+            currentstatus &= ~(1<<CURRENTWARNUNG); // Warnung off
+            currentcontrolcounter = 0;
+         }
+         
+      }
+      
+      
+   }
+   
    if (sinceblink > 1000) 
    {  
+      
+    //  tone(TONE,400,300);
       lcd_gotoxy(19,1);
       lcd_putc(' ');
       
@@ -847,12 +904,12 @@ void loop()
 //         lcd_putc(' ');
       }
 
-      if (tastenstatusarray[4].pressed) // Taste gedrueckt Potential on
+      if (tastenstatusarray[ON_OFF_0].pressed) // Taste gedrueckt output on
       {
          lcd_gotoxy(19,1);
          lcd_putc('E');
          //dec_targetvalue(1, 8);
-         tastenstatusarray[4].pressed = 0;
+         tastenstatusarray[ON_OFF_0].pressed = 0;
          
       }
       else
@@ -861,12 +918,12 @@ void loop()
 //         lcd_putc(' ');
       }
  
-      if (tastenstatusarray[5].pressed) // Taste gedrueckt Potential off
+      if (tastenstatusarray[ON_OFF_1].pressed) // Taste gedrueckt output off
       {
          lcd_gotoxy(19,1);
          lcd_putc('F');
          //dec_targetvalue(1, 8);
-         tastenstatusarray[5].pressed = 0;
+         tastenstatusarray[ON_OFF_1].pressed = 0;
          
       }
       else
@@ -874,10 +931,6 @@ void loop()
   //       lcd_gotoxy(14,1);
  //        lcd_putc(' ');
       }
-
-      
-      
-      
        
       //lcd_putint1(drehgeber1_dir);
       // if ((timercounter % 1000) == 0)
@@ -892,9 +945,11 @@ void loop()
        
       
     } // if sinceblink
+   
 
 if (sincelcd > 100) // LCD aktualisieren
 {
+   
    sincelcd = 0;
    lcd_gotoxy(0,2);
    lcd_putc('I');
@@ -915,12 +970,14 @@ if (sincelcd > 100) // LCD aktualisieren
    lcd_putc(' ');
    lcd_puts("t");
    lcd_putint12(get_targetvalue(1));
-   lcd_putc(' ');
-   lcd_putint2(get_currentcontrol());
-   if (get_currentcontrol())
-   {
-      tone(TONE,400,300);
-   }
+   lcd_gotoxy(15,3);
+   //tempcurrentcontrol = get_currentcontrol();
+   tempcurrentcontrol = is_current_limit();
+   lcd_putint(loopcontrol);
+   //lcd_putint2(get_currentcontrol());
+   //lcd_putc(' ');
+   lcd_putint2(currentcontrol_level);
+   
 
    lcd_gotoxy(15,0);
    lcd_putc('d');
@@ -943,7 +1000,7 @@ if (sincelcd > 100) // LCD aktualisieren
          //Serial.printf("usb_rawhid_recv: %x\n",r);
          U_soll = ((inbuffer[4]<<8) + inbuffer[5]) ;
          
-         I_soll = (inbuffer[6]<<8) + inbuffer[7];
+         I_soll = (inbuffer[2]<<8) + inbuffer[3];
          
          set_target_adc_val(0,I_soll);
          set_target_adc_val(1,U_soll);

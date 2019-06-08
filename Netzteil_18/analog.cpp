@@ -189,6 +189,9 @@ static void  control_loop()
  tmp=target_val[0] - analog_result[0]; // current diff
  if (tmp <0) // current too high
  {
+    loopcontrol &= ~(1<<4);
+    loopcontrol &= ~(1<<5);
+    loopcontrol |= (1<<0);
     // ** current control:
     //
     // stay in current control if we are
@@ -205,22 +208,28 @@ static void  control_loop()
     currentcontrol=10; // I control
     if (analog_result[1] > target_val[1])
     {
+        loopcontrol |= (1<<1);
        // oh, voltage too high, get out of current control:
        tmp = -20;
        currentcontrol=0; // U control
+       
     }
  }
  else
  {
+    loopcontrol &= ~(1<<0);
+    loopcontrol &= ~(1<<1);
     // ** voltage control:
     //
     // if we are in current control then we can only go
     // down (tmp is negative). To increase the current
     // we come here to voltage control. We must slowly
     // count up.
-    tmp=1+ target_val[1]  - analog_result[1]; // voltage diff
+    loopcontrol |= (1<<4);
+    tmp = 1 + target_val[1]  - analog_result[1]; // voltage diff
     if (currentcontrol)
     {
+       loopcontrol |= (1<<5);
        currentcontrol--;
        // do not go up immediately after we came out of current control:
        if (tmp>0) tmp=0;
@@ -232,6 +241,7 @@ static void  control_loop()
  }
  if (tmp==0) 
  {
+    
     return; // nothing to change
  }
  // put a cap on increase
@@ -253,7 +263,6 @@ static void  control_loop()
    
  if (dac_val>0x0FFF) // 4095
  {
-    
     dac_val=0x0FFF; //max, 12bit
  }
  if (dac_val<TRANSISTOR_THRESHOLD)

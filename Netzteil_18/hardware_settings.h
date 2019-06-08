@@ -18,7 +18,7 @@
 #define I_MAX 250
 
 #define U_START 1000 // 10V
-#define I_START 2000
+#define I_START 500
 
 #define P_OFFSET 1250 // Mitte fuer Potential
 
@@ -80,6 +80,10 @@
 
 #define POTENTIAL_BIT   0     // gesetzt in ISR, Potential anzeigen bei Aenderung
 #define POTENTIAL_ZEIT   1000    // Anzeigezeit
+
+#define CURRENTLIMIT_BIT 4    // gesetzt wenn currentcontrol > 0 
+#define CURRENTLIMIT_TONE_BIT 5  // Warnton 
+#define CURRENTLIMIT_ZEIT 1000 // Anzeigezeit der Einstellung
 
 #define ON_OFF_0        4 // OFF  schalten
 #define ON_OFF_1        5 // ON schalten
