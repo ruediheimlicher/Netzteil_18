@@ -613,7 +613,7 @@ void loop()
       
     //  lcd_gotoxy(16,0);
     //  lcd_puthex(loopcontrol);
-      loopcontrol = 0;
+    //  loopcontrol = 0;
       // sine wave
       /*
       sinval = sin(phase) * 400.0 + 800.0;
@@ -951,6 +951,7 @@ if (sincelcd > 100) // LCD aktualisieren
 {
    
    sincelcd = 0;
+   
    lcd_gotoxy(0,2);
    lcd_putc('I');
    lcd_putc(' ');
@@ -970,13 +971,15 @@ if (sincelcd > 100) // LCD aktualisieren
    lcd_putc(' ');
    lcd_puts("t");
    lcd_putint12(get_targetvalue(1));
-   lcd_gotoxy(15,3);
+   lcd_gotoxy(14,3);
    //tempcurrentcontrol = get_currentcontrol();
    tempcurrentcontrol = is_current_limit();
    lcd_putint(loopcontrol);
    //lcd_putint2(get_currentcontrol());
-   //lcd_putc(' ');
-   lcd_putint2(currentcontrol_level);
+   lcd_putc(' ');
+   //lcd_putint2(currentcontrol_level);
+   lcd_putint2(get_currentcontrol());
+   
    
 
    lcd_gotoxy(15,0);
@@ -984,7 +987,7 @@ if (sincelcd > 100) // LCD aktualisieren
    //lcd_putint12(get_dacval());
    lcd_putint12(potential);
 
-   
+   loopcontrol = 0;
 }
 
 #pragma mark USB   
