@@ -235,7 +235,8 @@ static void  control_loop()
        if (tmp>0) tmp=0;
     }
  }
- if (tmp> -3 && tmp<4)
+if (tmp> -3 && tmp<4)
+// if (tmp> -6 && tmp<8)
  { // avoid LSB bouncing if we are close
     tmp=0;
  }
@@ -245,7 +246,7 @@ static void  control_loop()
     return; // nothing to change
  }
  // put a cap on increase
- if (tmp>1)
+ if (tmp>10)
  {
     tmp=1;
  }
