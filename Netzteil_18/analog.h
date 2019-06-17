@@ -17,6 +17,7 @@ extern ADC *adc;
 //#define ADC_POT   4
 
 #define OSZIA 15
+#define OSZIB 17
 
 
 extern void init_analog(void);

@@ -450,6 +450,8 @@ void setup()
    Serial.begin(38400);
    pinMode(OSZIA,OUTPUT);
    digitalWriteFast(OSZIA,HIGH);
+   pinMode(OSZIB,OUTPUT);
+   digitalWriteFast(OSZIB,HIGH);
    loopLED = 18;
    // LCD
    pinMode(LCD_RSDS_PIN, OUTPUT);
@@ -793,17 +795,17 @@ void loop()
       //    lcd_gotoxy(2,2);
       //    lcd_putint12(temp);
 #pragma mark debounce
-      lcd_gotoxy(12,1);
-      lcd_puthex(SPItastenstatus);
+ //     lcd_gotoxy(12,1);
+ //     lcd_puthex(SPItastenstatus);
       SPItastenstatus=0;
       
       lcd_gotoxy(0,1);
       lcd_putc('d');
       lcd_putc(' ');
       lcd_putint12(drehgeber1_count);
-      lcd_putc(' ');
-      lcd_putc('c');
-      lcd_puthex(SPIcheck);
+//      lcd_putc(' ');
+//      lcd_putc('c');
+//      lcd_puthex(SPIcheck);
       
 //      lcd_gotoxy(18,1);
 //      lcd_puthex(tastenbitstatus);
@@ -951,6 +953,8 @@ if (sincelcd > 100) // LCD aktualisieren
 {
    
    sincelcd = 0;
+   tempcurrentcontrol = is_current_limit();
+   
    
    lcd_gotoxy(0,2);
    lcd_putc('I');
@@ -973,7 +977,7 @@ if (sincelcd > 100) // LCD aktualisieren
    lcd_putint12(get_targetvalue(1));
    lcd_gotoxy(14,3);
    //tempcurrentcontrol = get_currentcontrol();
-   tempcurrentcontrol = is_current_limit();
+   
    lcd_putint(loopcontrol);
    //lcd_putint2(get_currentcontrol());
    lcd_putc(' ');
@@ -988,6 +992,7 @@ if (sincelcd > 100) // LCD aktualisieren
    lcd_putint12(potential);
 
    loopcontrol = 0;
+    
 }
 
 #pragma mark USB   

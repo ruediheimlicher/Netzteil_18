@@ -18,11 +18,11 @@
 #define I_MAX 250
 
 #define U_START 1000 // 10V
-#define I_START 500
+#define I_START 1000
 
 #define P_OFFSET 1250 // Mitte fuer Potential
 
-# define TRANSISTOR_THRESHOLD 100
+# define TRANSISTOR_THRESHOLD 400
 // internal adc ref voltage (should be 2.56V, can vary from uC to uC)
 #define ADC_REF 3.26
 
