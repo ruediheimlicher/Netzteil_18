@@ -268,7 +268,7 @@ uint8_t checktasten(void)
    return tipptastenstatus ;
 }
 
-uint8_t checkSPItasten(void)
+uint8_t checkSPItasten(void) // MCP23S17 abrufen
 {
    uint8_t count = 0; // Anzahl aktivierter Tasten
    uint8_t i=0;
@@ -283,7 +283,7 @@ uint8_t checkSPItasten(void)
       {
          count++;
          tastenstatusarray[i].tasten_history = tastenstatusarray[i].tasten_history << 1;
-         
+      
          uint8_t pinnummer = tastenstatusarray[i].pin;
          tastenstatusarray[i].tasten_history |= ((tastencode & (1<<pinnummer)) > 0);
          if ((tastenstatusarray[i].tasten_history & 0b11000111) == 0b00000111)
@@ -307,26 +307,11 @@ void debounce_ISR(void)
 //  digitalWriteFast(OSZIA,LOW);
    uint8_t old_tipptastenstatus = tipptastenstatus;
    //tipptastenstatus = checktasten();
-   SPIcheck  = checkSPItasten(); 
- //  digitalWriteFast(OSZIA,HIGH);
-   /*
-   if ((digitalReadFast(DREHGEBER2_A) == 1) && (digitalReadFast(DREHGEBER2_B) == 0)) //  Impuls B ist 0,  kommt spaeter: RI A
-   {
-      if (potential < MAX_POT - 10)
-      {
-         potential += 10;
-      }
-   }
-   else if ((digitalReadFast(DREHGEBER2_A) == 0) && (digitalReadFast(DREHGEBER2_B) == 1))// //  Impuls B ist 1,  war frueher:RI B
-   {
-      if (potential > 10)
-      {
-         potential -= 10;
-      }
-   }
-*/
+   SPIcheck  = checkSPItasten(); // Status von Input-Tasten abrufen von MCP23S17
    
-   analogWrite(I_OUT, get_analogresult(0));
+ //  digitalWriteFast(OSZIA,HIGH);
+    
+   analogWrite(I_OUT, get_analogresult(0)); // Strom anzeigen
    /*
    if (instrumentstatus & (1 << POTENTIAL_BIT))
    {
@@ -349,7 +334,7 @@ void debounce_ISR(void)
       
    }
    */
-  analogWrite(U_OUT, get_analogresult(1) * U_KORR); 
+  analogWrite(U_OUT, get_analogresult(1) * U_KORR); // Spannung anzeigen
   analogWrite(POTENTIAL_OUT, potential ); // Potential anzeigen
    
    
@@ -362,25 +347,11 @@ void DREHGEBER0_ISR(void) // I
    //digitalWriteFast(OSZIA,LOW);
    if (digitalReadFast(DREHGEBER0_B) == 0) //  Impuls B ist 0,  kommt spaeter: RI A
    {
-      /*
-      if (drehgeber0_count < DREHGEBER0_ANZ_POS - 10)
-      {
-         drehgeber0_dir = 0;
-         drehgeber0_count += 10;
-      }
-       */
       inc_targetvalue(0, 10);
    }
    else // //  Impuls B ist 1,  war frueher:RI B
    {
-      /*
-      if (drehgeber0_count > 10)
-      {
-         drehgeber0_dir = 1;
-         drehgeber0_count -= 10;
-      }
-       */
-      dec_targetvalue(0, 10);
+       dec_targetvalue(0, 10);
    }
    
    
@@ -392,29 +363,12 @@ void DREHGEBER1_ISR(void) // U
    //digitalWriteFast(OSZIA,LOW);
    if (digitalReadFast(DREHGEBER1_B) == 0) //  Impuls B ist 0,  kommt spaeter: RI A
    {
-      /*
-      if (drehgeber1_count < DREHGEBER1_ANZ_POS - 10)
-      {
-         drehgeber1_dir = 0;
-         drehgeber1_count += 10;
-      }
-      */
-      
-      inc_targetvalue(1, 10);
+       inc_targetvalue(1, 10);
    }
    else // //  Impuls B ist 1,  war frueher:RI B
    {
-      /*
-      if (drehgeber1_count > 10)
-      {
-         drehgeber1_dir = 1;
-         drehgeber1_count -= 10;
-      }
-       */
-      dec_targetvalue(1, 10);
+       dec_targetvalue(1, 10);
    }
-   
-   
    //digitalWriteFast(OSZIA,HIGH);
 }
 
@@ -617,20 +571,20 @@ void loop()
     //  lcd_puthex(loopcontrol);
     //  loopcontrol = 0;
       // sine wave
-      /*
-      sinval = sin(phase) * 400.0 + 800.0;
-      phase = phase + 0.2;
-      if (phase >= twopi)
-      {
-         phase = 0;
-      }
-      //    set_target_adc_val(1,sinval);
-      //    Serial.printf("sine wave: phase: \t%2.2f\t sin: \t%2.2f \t",phase, sin(phase));
-      //   Serial.println(val);
-      //mcp0.gpioPort(0xFFFF);
-      // end sine wave
-      */
-      //tone(TONE,400,300);
+         /*
+         sinval = sin(phase) * 400.0 + 800.0;
+         phase = phase + 0.2;
+         if (phase >= twopi)
+         {
+            phase = 0;
+         }
+         //    set_target_adc_val(1,sinval);
+         //    Serial.printf("sine wave: phase: \t%2.2f\t sin: \t%2.2f \t",phase, sin(phase));
+         //   Serial.println(val);
+         //mcp0.gpioPort(0xFFFF);
+         // end sine wave
+         */
+         //tone(TONE,400,300);
       if (digitalRead(loopLED) == 1)
       {
          //Serial.printf("LED ON\n");
@@ -670,10 +624,13 @@ void loop()
       // https://forum.arduino.cc/index.php?topic=353678.0
       //     SPI.beginTransaction(SPISettings(20000000, MSBFIRST, SPI_MODE0));
       //mcp0.gpioPort((regA << 8));
-      regB = 0x01;
-      regB = bereichpos;
-      uint8_t regBB = (regB & 0x07)<< 5;
-      mcp0.gpioWritePortA((regA | regBB));
+      regB = 0x01; // dummy-Counter auf bit 0-4
+      regB = bereichpos; 
+      uint8_t regBB = (regB & 0x07)<< 5; // Bereich auf Bit 5-7
+      
+      
+      mcp0.gpioWritePortA((regA | regBB)); // Ausgabe auf MCP23S17
+      
       //   uint8_t rr = (regA | regBB);
       //    lcd_gotoxy(12,0);
       //    lcd_puthex(regA);
@@ -828,7 +785,7 @@ void loop()
 
        */
       // Taste[0]
-      if (tastenstatusarray[0].pressed) // Taste gedrueckt Bereich up
+      if (tastenstatusarray[0].pressed) // Taste gedrueckt 
       {
          lcd_gotoxy(19,1);
          lcd_putc('A');
@@ -837,8 +794,6 @@ void loop()
          
          lcd_initialize(LCD_FUNCTION_8x2, LCD_CMD_ENTRY_INC, LCD_CMD_ON);
          _delay_ms(100);
-   //      lcd_puts("Teensy");
-         
       }
       else
       {
@@ -848,7 +803,7 @@ void loop()
       
       
       // Taste[1]
-      if (tastenstatusarray[1].pressed) // Taste gedrueckt Bereich down
+      if (tastenstatusarray[1].pressed) // Taste gedrueckt 
       {
          lcd_gotoxy(19,1);
          lcd_putc('B');
@@ -863,7 +818,7 @@ void loop()
  //        lcd_gotoxy(14,1);
  //        lcd_putc(' ');
       }
-      
+      /*
       // Taste[2]
       if (tastenstatusarray[2].pressed) // Taste gedrueckt ON
       {
@@ -873,8 +828,6 @@ void loop()
          {
             bereichpos--;
          }
-
-
          //dec_targetvalue(1, 8);
          tastenstatusarray[2].pressed = 0;
          
@@ -905,7 +858,7 @@ void loop()
  //        lcd_gotoxy(15,1);
 //         lcd_putc(' ');
       }
-
+*/
       if (tastenstatusarray[ON_OFF_0].pressed) // Taste gedrueckt output on
       {
          lcd_gotoxy(19,1);
@@ -952,6 +905,43 @@ void loop()
 if (sincelcd > 100) // LCD aktualisieren
 {
    
+   //
+   // Taste[2]
+   if (tastenstatusarray[2].pressed) // Taste gedrueckt ON
+   {
+      lcd_gotoxy(19,1);
+      lcd_putc('C');
+      if (bereichpos )
+      {
+         bereichpos--;
+      }
+      tastenstatusarray[2].pressed = 0;      
+   }
+   else
+   {
+      //        lcd_gotoxy(15,1);
+      //        lcd_putc(' ');
+   }
+   
+   if (tastenstatusarray[3].pressed) // Taste gedrueckt OFF
+   {
+      //lcd_gotoxy(10,1);
+      //lcd_puthex(tastenstatusarray[3].pin);
+      if (bereichpos < 4)
+      {
+         bereichpos++;
+      }
+      lcd_gotoxy(19,1);
+      lcd_putc('D');
+      tastenstatusarray[3].pressed = 0;      
+   }
+   else
+   {
+      //        lcd_gotoxy(15,1);
+      //         lcd_putc(' ');
+   }
+
+   //
    sincelcd = 0;
    tempcurrentcontrol = is_current_limit();
    
@@ -1032,4 +1022,4 @@ if (sincelcd > 100) // LCD aktualisieren
       
    }
    
-}
+} // end loop
