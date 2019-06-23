@@ -148,7 +148,7 @@ public:
 	void 			gpioDigitalWrite(uint8_t pin, bool value);  //write data to one pin
 	void			gpioDigitalWriteFast(uint8_t pin, bool value);
 	int 			gpioDigitalRead(uint8_t pin);				//read data from one pin
-	uint8_t		 	gpioRegisterReadByte(byte reg);					//read a byte from chip register
+	uint8_t		 gpioRegisterReadByte(byte reg);					//read a byte from chip register
 	
    uint16_t    exchangeGpioPort(uint16_t data);
    

@@ -226,11 +226,12 @@ uint8_t gpio_MCP23S17::gpioReadPortB()
 //   return (gpioReadAddress(MCP23S17_GPIO) & 0x00FF);
 }
 
+/*
 uint16_t gpio_MCP23S17::exchangeGpioPort(uint16_t data)
 {
-   return (_GPIOexchangeWord(MCP23S17_GPIO, data));
+   return (_FGPIOexchangeWord(MCP23S17_GPIO, data));
 }
-
+*/
 
 uint16_t gpio_MCP23S17::readGpioPortFast(){
 	return _gpioState;

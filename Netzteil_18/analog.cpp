@@ -26,7 +26,11 @@ extern volatile int16_t analog_result[2];
 
 
 extern volatile uint8_t loopcontrol;
-
+extern volatile uint8_t ausgabestatus;
+extern volatile uint16_t controllooperrcounterA;
+extern volatile uint16_t controllooperrcounterB;
+extern volatile uint16_t controllooperrcounterC;
+extern volatile uint16_t controllooperrcounterD;
 
 //ADC::Sync_result result;
 
@@ -63,7 +67,7 @@ void init_analog(void)
    
    adc->setAveraging(2); // set number of averages 
    adc->setResolution(12); // set bits of resolution
-   adc->setConversionSpeed(ADC_CONVERSION_SPEED::HIGH_SPEED);
+   adc->setConversionSpeed(ADC_CONVERSION_SPEED::MED_SPEED);
    adc->setSamplingSpeed(ADC_SAMPLING_SPEED::HIGH_SPEED);
    adc->setReference(ADC_REFERENCE::REF_3V3, ADC_0);
    
@@ -105,7 +109,7 @@ void adc0_isr(void)
    
    //digitalWriteFast(OSZIA,LOW);
   /*
-   if (analog_result[0] > SH_CIR_PROT_3)
+   if (analog_result[0] > SH_CIR_PROT)
    {
       dac_val=400;
       //dac(dac_val);
@@ -200,9 +204,14 @@ static void  control_loop()
    tmp=target_val[0] - analog_result[0]; // current diff
    if (tmp < 0) // current too high
    {
+      controllooperrcounterA++;
       digitalWriteFast(OSZIA,LOW);
       loopcontrol &= ~(1<<4);
       loopcontrol &= ~(1<<5);
+      loopcontrol &= ~(1<<6);
+
+      loopcontrol &= ~(1<<7);
+
       loopcontrol |= (1<<0);
       // ** current control:
       //
@@ -221,6 +230,7 @@ static void  control_loop()
       currentcontrol=10; // I control
       if (analog_result[1] > target_val[1])
       {
+         controllooperrcounterB++;
          loopcontrol |= (1<<1);
          // oh, voltage too high, get out of current control:
          tmp = -20;
@@ -243,6 +253,7 @@ static void  control_loop()
       tmp = 1 + target_val[1]  - analog_result[1]; // voltage diff
       if (currentcontrol)
       {
+         controllooperrcounterB++;
          loopcontrol |= (1<<5);
          currentcontrol--;
          //currentcontrol=0;
@@ -260,6 +271,7 @@ static void  control_loop()
    }
    if (tmp==0) 
    {
+      controllooperrcounterC++;
       digitalWriteFast(OSZIB,HIGH);
       return; // nothing to change
       
@@ -290,7 +302,17 @@ static void  control_loop()
    {  // the output is zero below 800 due to transistor threshold
       dac_val=TRANSISTOR_THRESHOLD;
    }
-   analogWrite(A14, (int)dac_val);
+   
+   //analogWrite(A14, (int)dac_val);
+   //return;
+   if (ausgabestatus & (1<<AUSGANG_BIT))
+   {
+      analogWrite(A14, (int)dac_val);
+   }
+   else
+   {
+      analogWrite(A14,TRANSISTOR_THRESHOLD);
+   }
    digitalWriteFast(OSZIB,HIGH);
 }
   
@@ -327,24 +349,21 @@ int16_t adc_u_to_disp(int16_t adcunits)
 // The integer should not be larger than 999.
 // The integer must be a positive number.
 // decimalpoint_pos can be 0, 1 or 2
-void int_to_dispstr(uint16_t inum,char *outbuf,int8_t decimalpoint_pos)
-{
+void int_to_dispstr(uint16_t inum,char *outbuf,int8_t decimalpoint_pos){
    int8_t i,j;
    char chbuf[10];
    itoa(inum,chbuf,10); // convert integer to string
    i=strlen(chbuf);
    if (i>4) i=4; //overflow protection
-   strcpy(outbuf,"   0"); //decimalpoint_pos==0
+   strcpy(outbuf,"    0"); //decimalpoint_pos==0
    if (decimalpoint_pos==1) strcpy(outbuf," 0.0");
    if (decimalpoint_pos==2) strcpy(outbuf,"0.00");
    j=5;
-   while(i)
-   {
+   while(i){
       outbuf[j-1]=chbuf[i-1];
       i--;
       j--;
-      if (j==5-decimalpoint_pos)
-      {
+      if (j==4-decimalpoint_pos){
          // jump over the pre-set dot
          j--;
       }

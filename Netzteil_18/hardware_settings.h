@@ -17,11 +17,22 @@
 #define U_MAX 3220
 #define I_MAX 250
 
-#define U_START 1000 // 10V
+#define U_START 1000 // 5V
 #define I_START 1000
 
-#define P_OFFSET 1250 // Mitte fuer Potential
+#define I_KORR_0  1.1
+#define I_KORR_1  1.07
+#define I_KORR_2  1.06
+#define I_KORR_3  1.1
+#define I_KORR_4  0.94
 
+#define P_OFFSET 1500 // Mitte fuer Potential 6.6V
+#define P_OBERGRENZE 3000
+#define P_PWM_OFFSET 0.44
+#define P_REF     1.64 // Referenzspannung Po: Uref/2
+#define P_AMPLI   2.73 // 82k/22k Verstärkung Diff-Op
+#define P_KORR    1.4
+#define P_INSTRUMENTKORR   1.0
 # define TRANSISTOR_THRESHOLD 400
 // internal adc ref voltage (should be 2.56V, can vary from uC to uC)
 #define ADC_REF 3.26
@@ -39,7 +50,7 @@
 // Imax=3A Ilim = (3*4095* .165/3.25 // unabh. von Shunt-Widerstand
 // #define SH_CIR_PROT 850 // 3700 (3V max aus INA)
 
-#define SH_CIR_PROT 630 // vorher: 3700 (??)
+#define SH_CIR_PROT 3200 // vorher: 3700 (??)
 
 #define U_KORR 1.21  //  Kalib Messinstrument
 
@@ -79,8 +90,9 @@
 #define DREHGEBER2_B   9    // Pin B
 
 #define POTENTIAL_BIT   0     // gesetzt in ISR, Potential anzeigen bei Aenderung
-#define POTENTIAL_ZEIT   1000    // Anzeigezeit
+#define POTENTIAL_ZEIT   2000    // Anzeigezeit
 
+#define AUSGANG_BIT  2   // gesetzt, wenn Ausgang ON
 #define CURRENTLIMIT_BIT 4    // gesetzt wenn currentcontrol > 0 
 #define CURRENTLIMIT_TONE_BIT 5  // Warnton 
 #define CURRENTLIMIT_ZEIT 1000 // Anzeigezeit der Einstellung

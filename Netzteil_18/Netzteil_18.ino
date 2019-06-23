@@ -69,7 +69,6 @@ ADC::Sync_result result;
 IntervalTimer debouncetimer;
 // Define variables and constants
 ///
-/// @brief      Name of the LED
 ///
 
 uint8_t loopLED;
@@ -110,6 +109,7 @@ uint16_t input =0;
 volatile int16_t analog_result[2]; 
 
 volatile int16_t potential = P_OFFSET;
+volatile int16_t oldpotential = P_OFFSET;
 
 
 //ADC::Sync_result result;
@@ -132,10 +132,12 @@ volatile uint16_t drehgeber1_count = 0;
 uint8_t drehgeber2_dir = 0; //Drehrichtung
 volatile uint16_t drehgeber2_count = 2000;
 
-volatile uint8_t instrumentstatus = 0; // Anzeige Instrumente: Potential oder Ausgangsspannung, currentlimit oder current
+volatile uint8_t ausgabestatus = 0; // Anzeige Instrumente: Potential oder Ausgangsspannung, currentlimit oder current
 
 volatile uint16_t U_instrumentcounter = 0; // Counter fuer U-Anzeigezeit
 volatile uint16_t I_instrumentcounter = 0; // Counter fuer I-Anzeigezeit
+
+volatile uint16_t ausgangsspannung = 0;
 
 volatile uint8_t bereichpos = 1;
 
@@ -156,7 +158,11 @@ volatile uint8_t SPIcheck=0;
 #define I_OUT  23 // A9
 #define U_OUT  6
 
+volatile uint16_t controllooperrcounterA=0;
+volatile uint16_t controllooperrcounterB=0;
+volatile uint16_t controllooperrcounterC=0;
 
+volatile uint16_t controllooperrcounterD=0;
 
 volatile uint8_t loopcontrol=0;
 
@@ -167,6 +173,7 @@ volatile uint8_t currentstatus=0; // status currentcontrol
 volatile uint8_t currentcontrol_level=0; // currentcontrol von controlloop
 volatile uint16_t currentcontrolcounter = 0; // Counter fuer Warnton
 
+float I_korr_array[5] = {I_KORR_0,I_KORR_1,I_KORR_2,I_KORR_3,I_KORR_4};
 
 
 typedef struct
@@ -301,7 +308,7 @@ uint8_t checkSPItasten(void) // MCP23S17 abrufen
 }
 
 
-
+#pragma mark debounce_ISR
 void debounce_ISR(void)
 {
 //  digitalWriteFast(OSZIA,LOW);
@@ -311,18 +318,20 @@ void debounce_ISR(void)
    
  //  digitalWriteFast(OSZIA,HIGH);
     
-   analogWrite(I_OUT, get_analogresult(0)); // Strom anzeigen
-   /*
-   if (instrumentstatus & (1 << POTENTIAL_BIT))
+   analogWrite(I_OUT, get_analogresult(0) * I_korr_array[bereichpos]); // Analog-Strom anzeigen
+   ausgangsspannung = get_targetvalue(1);
+   
+   if (ausgabestatus & (1 << POTENTIAL_BIT))
    {
       if(since_P < POTENTIAL_ZEIT)
       {
-         analogWrite(POTENTIAL_OUT, potential); // Potential anzeigen
+        // analogWrite(U_OUT, potential  * U_KORR); // Potential auf Instrument anzeigen
+         analogWrite(U_OUT, (P_OFFSET + (potential - P_OFFSET)* P_INSTRUMENTKORR) * U_KORR); // Potential auf Instrument anzeigen
       }
       else
       {
          since_P = 0; // Anzeigezeit beenden
-         instrumentstatus &= ~(1 << POTENTIAL_BIT); // 
+         ausgabestatus &= ~(1 << POTENTIAL_BIT); // 
       }
        
    }
@@ -330,15 +339,25 @@ void debounce_ISR(void)
    {
       since_P = 0; // Potential anzeigen unterdrücken
  
-      analogWrite(U_OUT, get_analogresult(1) * U_KORR);
-      
+      if (ausgabestatus & (1<<AUSGANG_BIT))
+      {
+         analogWrite(U_OUT, get_analogresult(1) * U_KORR);
+         
+      }
+      else
+      {
+         analogWrite(U_OUT, get_targetvalue(1)* U_KORR);
+      }
+  
    }
-   */
-  analogWrite(U_OUT, get_analogresult(1) * U_KORR); // Spannung anzeigen
-  analogWrite(POTENTIAL_OUT, potential ); // Potential anzeigen
    
+  //analogWrite(U_OUT, get_analogresult(1) * U_KORR); // Analog-Spannung anzeigen
    
+  // uint16_t redpotential = potential * P_KORR; 
    
+  analogWrite(POTENTIAL_OUT,(P_OBERGRENZE - potential) * P_KORR); // Potentialausgang an Buchse ausgeben
+ //  analogWrite(POTENTIAL_OUT,(potential) * P_KORR); // Potentialausgang an Buchse ausgeben
+    
 //   analogWrite(U_OUT, 1000);
 }
 
@@ -370,29 +389,36 @@ void DREHGEBER1_ISR(void) // U
        dec_targetvalue(1, 10);
    }
    //digitalWriteFast(OSZIA,HIGH);
+   //ausgangsspannung = get_targetvalue(1);
 }
 
-void DREHGEBER2_ISR(void) // P
+void DREHGEBER2_ISR(void) // P wird geaendert
 {
    //digitalWriteFast(OSZIA,LOW);
    if (digitalReadFast(DREHGEBER2_B) == 0) //  Impuls B ist 0,  kommt spaeter: RI A
    {
-       if (potential < MAX_POT - 10)
+       if (potential < MAX_POT - 20)
       {
-         potential += 10;
+         potential += 20;
       }
    }
    else // //  Impuls B ist 1,  war frueher:RI B
    {
-       if (potential > 10)
+      if (potential > 20)
       {
-         potential -= 10;
+         potential -= 20;
+      }
+      else
+      {
+         potential = 0;
       }
    }
-   since_P = 0;
-   U_instrumentcounter = 0; // Anzeigezeit reset
- //  instrumentstatus |= (1 << POTENTIAL_BIT); // Potential anzeigen
+   
+   since_P = 0; // Anzeigezeit resetten, 
+   U_instrumentcounter = 0; // Anzeigezeit reset Anzeigezeit auf 0 setzen, wird in 
+   ausgabestatus |= (1 << POTENTIAL_BIT); // Auf Instrument_U Potential anzeigen. Wird in debounce_ISR gecheckt
    //digitalWriteFast(OSZIA,HIGH);
+
 }
 
 
@@ -501,7 +527,7 @@ void setup()
    mcp0.portPullup(0x00FF);
    mcp0.gpioPort(0xFFFF);
    
-   debouncetimer.begin(debounce_ISR,1000);
+   debouncetimer.begin(debounce_ISR,2000);
   
    U_soll = U_START;//  10V
    set_target_adc_val(1,U_soll);
@@ -620,26 +646,16 @@ void loop()
          
       }
       
-      
+   /*   
       // https://forum.arduino.cc/index.php?topic=353678.0
-      //     SPI.beginTransaction(SPISettings(20000000, MSBFIRST, SPI_MODE0));
       //mcp0.gpioPort((regA << 8));
-      regB = 0x01; // dummy-Counter auf bit 0-4
-      regB = bereichpos; 
-      uint8_t regBB = (regB & 0x07)<< 5; // Bereich auf Bit 5-7
+      regB = 0x01;   // dummy-Counter auf bit 0-4
+      regB = bereichpos; // bereichpos in output-register von MCP schreiben
+      uint8_t MCP_outputB = (regB & 0x07)<< 5; // Bereich auf Bit 5-7
       
-      
-      mcp0.gpioWritePortA((regA | regBB)); // Ausgabe auf MCP23S17
-      
-      //   uint8_t rr = (regA | regBB);
-      //    lcd_gotoxy(12,0);
-      //    lcd_puthex(regA);
-      //    lcd_puthex(rr);
-      
-      //uint16_t portdata = mcp0.exchangeGpioPort((regA << 8));
-      //    
-      regB++;
-      
+      mcp0.gpioWritePortA((regA | MCP_outputB)); // Ausgabe auf output-Register von MCP23S17
+    */  
+       
       
       if (regA < 0x10)
       {
@@ -660,14 +676,15 @@ void loop()
       lcd_gotoxy(0,0);
       lcd_putc('U');
       
-      uint16_t U = get_analogresult(1);
+ //     uint16_t U = get_analogresult(1);
+      uint16_t U = ausgangsspannung;
  //     lcd_putint12(U);
       lcd_putc(' ');
       uint16_t Udisp = adc_u_to_disp(U);
       
  //     int_to_dispstr(Udisp,buf,1);
       
-      int_to_dispstr(U/2,buf,2);
+      int_to_dispstr(U/2,buf,1);
       lcd_puts(buf);
       lcd_putc('V');
   //    lcd_putint12(adc_u_to_disp(U));
@@ -704,7 +721,7 @@ void loop()
       //`
       adc->printError();
       adc->resetError();
-      
+  /*    
       n = RawHID.send((void*)outbuffer, 100);
       
       if (n > 0) 
@@ -715,7 +732,7 @@ void loop()
       {
          Serial.println(F("Unable to transmit packet"));
       }
-      
+  */    
       int outcontrol = (outbuffer[1]<<8) + outbuffer[2];
       Serial.printf("outH: %02X outL: %02X wert: \t%d\n",outbuffer[1],outbuffer[2],outcontrol);
       
@@ -756,10 +773,10 @@ void loop()
  //     lcd_puthex(SPItastenstatus);
       SPItastenstatus=0;
       
-      lcd_gotoxy(0,1);
-      lcd_putc('d');
-      lcd_putc(' ');
-      lcd_putint12(drehgeber1_count);
+//      lcd_gotoxy(0,1);
+//      lcd_putc('d');
+//      lcd_putc(' ');
+//      lcd_putint12(drehgeber1_count);
 //      lcd_putc(' ');
 //      lcd_putc('c');
 //      lcd_puthex(SPIcheck);
@@ -784,110 +801,7 @@ void loop()
        #define UD_POT_OFF         5
 
        */
-      // Taste[0]
-      if (tastenstatusarray[0].pressed) // Taste gedrueckt 
-      {
-         lcd_gotoxy(19,1);
-         lcd_putc('A');
-//         inc_targetvalue(1, 8);
-          tastenstatusarray[0].pressed = 0;
-         
-         lcd_initialize(LCD_FUNCTION_8x2, LCD_CMD_ENTRY_INC, LCD_CMD_ON);
-         _delay_ms(100);
-      }
-      else
-      {
- //        lcd_gotoxy(14,1);
- //        lcd_putc(' ');
-      }
-      
-      
-      // Taste[1]
-      if (tastenstatusarray[1].pressed) // Taste gedrueckt 
-      {
-         lcd_gotoxy(19,1);
-         lcd_putc('B');
-  //       lcd_puthex(tastenstatusarray[1].pin);
-  //       dec_targetvalue(1, 8);
-
-         tastenstatusarray[1].pressed = 0;
-         
-      }
-      else
-      {
- //        lcd_gotoxy(14,1);
- //        lcd_putc(' ');
-      }
-      /*
-      // Taste[2]
-      if (tastenstatusarray[2].pressed) // Taste gedrueckt ON
-      {
-         lcd_gotoxy(19,1);
-         lcd_putc('C');
-         if (bereichpos )
-         {
-            bereichpos--;
-         }
-         //dec_targetvalue(1, 8);
-         tastenstatusarray[2].pressed = 0;
-         
-      }
-      else
-      {
- //        lcd_gotoxy(15,1);
- //        lcd_putc(' ');
-      }
-      
-      if (tastenstatusarray[3].pressed) // Taste gedrueckt OFF
-      {
-         //lcd_gotoxy(10,1);
-         //lcd_puthex(tastenstatusarray[3].pin);
-         if (bereichpos < 4)
-         {
-            bereichpos++;
-         }
-
-         lcd_gotoxy(19,1);
-         lcd_putc('D');
-         //dec_targetvalue(1, 8);
-         tastenstatusarray[3].pressed = 0;
-         
-      }
-      else
-      {
- //        lcd_gotoxy(15,1);
-//         lcd_putc(' ');
-      }
-*/
-      if (tastenstatusarray[ON_OFF_0].pressed) // Taste gedrueckt output on
-      {
-         lcd_gotoxy(19,1);
-         lcd_putc('E');
-         //dec_targetvalue(1, 8);
-         tastenstatusarray[ON_OFF_0].pressed = 0;
-         
-      }
-      else
-      {
- //        lcd_gotoxy(14,1);
-//         lcd_putc(' ');
-      }
- 
-      if (tastenstatusarray[ON_OFF_1].pressed) // Taste gedrueckt output off
-      {
-         lcd_gotoxy(19,1);
-         lcd_putc('F');
-         //dec_targetvalue(1, 8);
-         tastenstatusarray[ON_OFF_1].pressed = 0;
-         
-      }
-      else
-      {
-  //       lcd_gotoxy(14,1);
- //        lcd_putc(' ');
-      }
-       
-      //lcd_putint1(drehgeber1_dir);
+        //lcd_putint1(drehgeber1_dir);
       // if ((timercounter % 1000) == 0)
       {
          //lcd_putc(' ');
@@ -901,16 +815,84 @@ void loop()
       
     } // if sinceblink
    
-
+#pragma mark tasten
 if (sincelcd > 100) // LCD aktualisieren
 {
+   sincelcd = 0;
+   // https://forum.arduino.cc/index.php?topic=353678.0
+   //mcp0.gpioPort((regA << 8));
+   regB = 0x01;   // dummy-Counter auf bit 0-4
+   regB = bereichpos; // bereichpos in output-register von MCP schreiben
+   uint8_t MCP_outputB = (regB & 0x07)<< 5; // Bereich auf Bit 5-7
    
+   mcp0.gpioWritePortA((regA | MCP_outputB)); // Ausgabe auf output-Register von MCP23S17
+
+   // Taste[0]
+   if (tastenstatusarray[0].pressed) // Reset LCD 
+   {
+      lcd_gotoxy(19,1);
+//      lcd_putc('A');
+      lcd_initialize(LCD_FUNCTION_8x2, LCD_CMD_ENTRY_INC, LCD_CMD_ON);
+      _delay_ms(100);
+
+      tastenstatusarray[0].pressed = 0;
+   }
+   else
+   {
+      //        lcd_gotoxy(14,1);
+      //        lcd_putc(' ');
+   }
+   
+   // Taste[1]
+   if (tastenstatusarray[1].pressed) // save to EEPROM 
+   {
+      lcd_gotoxy(19,1);
+      lcd_putc('B');
+      
+      tastenstatusarray[1].pressed = 0;
+      
+   }
+   else
+   {
+      //        lcd_gotoxy(14,1);
+      //        lcd_putc(' ');
+   }
+
+   if (tastenstatusarray[ON_OFF_0].pressed) // Ausgang ON 
+   {
+      lcd_gotoxy(19,1);
+      lcd_putc('E');
+      ausgabestatus |= (1 << AUSGANG_BIT);
+      tastenstatusarray[ON_OFF_0].pressed = 0;
+      
+   }
+   else
+   {
+      //        lcd_gotoxy(14,1);
+      //         lcd_putc(' ');
+   }
+   
+   if (tastenstatusarray[ON_OFF_1].pressed) // Ausgang OFF 
+   {
+      lcd_gotoxy(19,1);
+      lcd_putc('F');
+      ausgabestatus &= ~(1 << AUSGANG_BIT);
+      tastenstatusarray[ON_OFF_1].pressed = 0;
+      
+   }
+   else
+   {
+      //       lcd_gotoxy(14,1);
+      //        lcd_putc(' ');
+   }
+
    //
    // Taste[2]
    if (tastenstatusarray[2].pressed) // Taste gedrueckt ON
    {
       lcd_gotoxy(19,1);
       lcd_putc('C');
+      loopcontrol |= (1<<6);
       if (bereichpos )
       {
          bereichpos--;
@@ -927,10 +909,12 @@ if (sincelcd > 100) // LCD aktualisieren
    {
       //lcd_gotoxy(10,1);
       //lcd_puthex(tastenstatusarray[3].pin);
+      controllooperrcounterD++;
       if (bereichpos < 4)
       {
          bereichpos++;
       }
+      loopcontrol |= (1<<7);
       lcd_gotoxy(19,1);
       lcd_putc('D');
       tastenstatusarray[3].pressed = 0;      
@@ -942,9 +926,20 @@ if (sincelcd > 100) // LCD aktualisieren
    }
 
    //
-   sincelcd = 0;
+   
    tempcurrentcontrol = is_current_limit();
    
+   lcd_gotoxy(0, 1);
+   lcd_puthex(ausgabestatus);
+   lcd_putc(' ');
+   lcd_putint(controllooperrcounterA);
+   lcd_putc(' ');
+   lcd_putint(controllooperrcounterB);
+   lcd_putc(' ');
+   lcd_putint(controllooperrcounterC);
+   lcd_putc(' ');
+   lcd_putint(controllooperrcounterD);
+
    
    lcd_gotoxy(0,2);
    lcd_putc('I');
@@ -965,16 +960,20 @@ if (sincelcd > 100) // LCD aktualisieren
    lcd_putc(' ');
    lcd_puts("t");
    lcd_putint12(get_targetvalue(1));
+   
+   //tempcurrentcontrol = get_currentcontrol();
+
+   
    lcd_gotoxy(14,3);
    //tempcurrentcontrol = get_currentcontrol();
-   
+   //lcd_putc(' ');
    lcd_putint(loopcontrol);
+   
+   
    //lcd_putint2(get_currentcontrol());
    lcd_putc(' ');
    //lcd_putint2(currentcontrol_level);
    lcd_putint2(get_currentcontrol());
-   
-   
 
    lcd_gotoxy(15,0);
    lcd_putc('d');
@@ -983,7 +982,7 @@ if (sincelcd > 100) // LCD aktualisieren
 
    loopcontrol = 0;
     
-}
+} // end sincelcd
 
 #pragma mark USB   
 //   if (sinceusb > 100)
