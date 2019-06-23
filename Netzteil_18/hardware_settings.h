@@ -18,7 +18,7 @@
 #define I_MAX 250
 
 #define U_START 1000 // 5V
-#define I_START 1000
+#define I_START 2000
 
 #define I_KORR_0  1.1
 #define I_KORR_1  1.07

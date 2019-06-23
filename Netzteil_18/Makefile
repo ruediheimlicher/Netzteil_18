@@ -159,7 +159,7 @@ TEENSY_LAYOUT = LAYOUT_US_ENGLISH
 # SERIAL_BAUDRATE for the serial console, 9600 by default
 # Uncomment and specify another speed
 #
-SERIAL_BAUDRATE = 38400
+#SERIAL_BAUDRATE = 9600
 
 # OPTIMISATION for the optimisation and debugger levels
 # Help: http://bit.ly/2gx3axL

@@ -225,6 +225,7 @@ uint8_t is_button_pressed(uint8_t button_history)
 {
    return (button_history == 0b01111111);
 }
+
 uint8_t is_button_released(uint8_t button_history){
    return (button_history == 0b10000000);
 }
@@ -311,7 +312,7 @@ uint8_t checkSPItasten(void) // MCP23S17 abrufen
 #pragma mark debounce_ISR
 void debounce_ISR(void)
 {
-//  digitalWriteFast(OSZIA,LOW);
+  digitalWriteFast(OSZIB,LOW);
    uint8_t old_tipptastenstatus = tipptastenstatus;
    //tipptastenstatus = checktasten();
    SPIcheck  = checkSPItasten(); // Status von Input-Tasten abrufen von MCP23S17
@@ -359,6 +360,7 @@ void debounce_ISR(void)
  //  analogWrite(POTENTIAL_OUT,(potential) * P_KORR); // Potentialausgang an Buchse ausgeben
     
 //   analogWrite(U_OUT, 1000);
+   digitalWriteFast(OSZIB,HIGH);
 }
 
 void DREHGEBER0_ISR(void) // I
@@ -427,7 +429,7 @@ void DREHGEBER2_ISR(void) // P wird geaendert
 
 void setup()
 {
-   Serial.begin(38400);
+   Serial.begin(9600);
    pinMode(OSZIA,OUTPUT);
    digitalWriteFast(OSZIA,HIGH);
    pinMode(OSZIB,OUTPUT);
@@ -527,6 +529,7 @@ void setup()
    mcp0.portPullup(0x00FF);
    mcp0.gpioPort(0xFFFF);
    
+   debouncetimer.priority(0);
    debouncetimer.begin(debounce_ISR,2000);
   
    U_soll = U_START;//  10V

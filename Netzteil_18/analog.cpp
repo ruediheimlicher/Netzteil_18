@@ -24,6 +24,7 @@ extern  int readPin;
 extern int U_Pot;
 extern volatile int16_t analog_result[2]; 
 
+extern void debounce_ISR(void);
 
 extern volatile uint8_t loopcontrol;
 extern volatile uint8_t ausgabestatus;
@@ -57,6 +58,9 @@ static void control_loop(void);
 // https://forum.pjrc.com/threads/25I_RESISTOR
 //532 -ADC-library-update-now-with-support-for-Teensy-3-1
 
+#define DEBOUNCECOUNT   20
+volatile uint8_t debouncecounter = 0;
+
 void init_analog(void) 
 {
  	analog_result[0]=50; // I
@@ -65,12 +69,12 @@ void init_analog(void)
 	target_val[1]=0; // initialize to 5000, U
    analogWriteFrequency(4, 375000);
    
-   adc->setAveraging(2); // set number of averages 
+   adc->setAveraging(8); // set number of averages 
    adc->setResolution(12); // set bits of resolution
    adc->setConversionSpeed(ADC_CONVERSION_SPEED::MED_SPEED);
    adc->setSamplingSpeed(ADC_SAMPLING_SPEED::HIGH_SPEED);
    adc->setReference(ADC_REFERENCE::REF_3V3, ADC_0);
-   
+   //NVIC_SET_PRIORITY(IRQ_ADC0, 0); // 0 = highest priority
    
    adc->enableInterrupts(ADC_0);
     
@@ -85,7 +89,8 @@ void init_analog(void)
 
 void adc0_isr(void) 
 {
-   //digitalWriteFast(OSZIA,LOW);
+   digitalWriteFast(OSZIA,LOW); // <4us insgesamt
+   
    result = adc->readSynchronizedContinuous();
    
    //analog_result[0] = adc->analogReadContinuous(ADC_0);// I
@@ -117,10 +122,17 @@ void adc0_isr(void)
       return;
    }
 */
-   control_loop(); // < 1us
+  // digitalWriteFast(OSZIA,LOW);
+   control_loop(); // 2us
    
-   //digitalWriteFast(OSZIA,HIGH);
-
+   digitalWriteFast(OSZIA,HIGH);
+   
+   debouncecounter++;
+   if (debouncecounter >= DEBOUNCECOUNT)
+   {
+      //debounce_ISR();
+      debouncecounter = 0;
+   }
 }
 
 void adc1_isr(void) 
@@ -199,13 +211,13 @@ void dec_targetvalue(uint8_t channel, uint16_t dec) // targetvalue decrementiere
 static void  control_loop()
 {
    
-   digitalWriteFast(OSZIB,LOW);
+   //digitalWriteFast(OSZIB,LOW);
    int16_t tmp;
    tmp=target_val[0] - analog_result[0]; // current diff
    if (tmp < 0) // current too high
    {
       controllooperrcounterA++;
-      digitalWriteFast(OSZIA,LOW);
+      //digitalWriteFast(OSZIA,LOW);
       loopcontrol &= ~(1<<4);
       loopcontrol &= ~(1<<5);
       loopcontrol &= ~(1<<6);
@@ -222,7 +234,7 @@ static void  control_loop()
       // and then back to current control. Permanent
       // hopping would lead to oscillation and current
       // spikes.
-      if (tmp>-2) 
+      if (tmp>-20) 
       {
          tmp=0;
       }    
@@ -233,11 +245,11 @@ static void  control_loop()
          controllooperrcounterB++;
          loopcontrol |= (1<<1);
          // oh, voltage too high, get out of current control:
-         tmp = -20;
+         tmp = -40;
          currentcontrol=0; // U control
          
       }
-      digitalWriteFast(OSZIA,HIGH);
+      //digitalWriteFast(OSZIA,HIGH);
    }
    else // voltage-control
    {
@@ -253,7 +265,7 @@ static void  control_loop()
       tmp = 1 + target_val[1]  - analog_result[1]; // voltage diff
       if (currentcontrol)
       {
-         controllooperrcounterB++;
+         controllooperrcounterC++;
          loopcontrol |= (1<<5);
          currentcontrol--;
          //currentcontrol=0;
@@ -271,8 +283,8 @@ static void  control_loop()
    }
    if (tmp==0) 
    {
-      controllooperrcounterC++;
-      digitalWriteFast(OSZIB,HIGH);
+      controllooperrcounterD++;
+      //digitalWriteFast(OSZIB,HIGH);
       return; // nothing to change
       
    }
@@ -313,7 +325,7 @@ static void  control_loop()
    {
       analogWrite(A14,TRANSISTOR_THRESHOLD);
    }
-   digitalWriteFast(OSZIB,HIGH);
+   //digitalWriteFast(OSZIB,HIGH);
 }
   
 uint16_t readPot(uint8_t pin)
