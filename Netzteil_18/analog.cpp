@@ -258,7 +258,7 @@ static void  control_loop()
       tmp = 1 + target_val[1]  - analog_result[1]; // voltage diff
       if (currentcontrol)
       {
-         controllooperrcounterC++;
+       //  controllooperrcounterC++;
          loopcontrol |= (1<<5);
          currentcontrol--;
          //currentcontrol=0;

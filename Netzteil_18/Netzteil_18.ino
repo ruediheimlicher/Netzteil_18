@@ -278,15 +278,20 @@ uint8_t checktasten(void)
    return tipptastenstatus ;
 }
 
-uint8_t checkSPItasten(void) // MCP23S17 abrufen
+uint8_t checkSPItasten(void) // MCP23S17 abrufen // Takt ca. 300us
 {
    uint8_t count = 0; // Anzahl aktivierter Tasten
    uint8_t i=0;
    uint8_t tastencode = 0;
    uint8_t check=0;
-   tastencode = 0xFF - mcp0.gpioReadPortB(); // active taste ist LO > invertieren
-
-   while (i<8)
+   //digitalWriteFast(OSZIB,LOW); // 
+   tastencode = 0xFF - mcp0.gpioReadPortB(); // 8 us active taste ist LO > invertieren
+     
+   //digitalWriteFast(OSZIB,HIGH);
+   controllooperrcounterC++;
+   
+   //digitalWriteFast(OSZIB,LOW);
+   while (i<8) // 1us
    {
       uint8_t pressed = 0;
       if (tastenstatusarray[i].pin < 0xFF)
@@ -307,6 +312,7 @@ uint8_t checkSPItasten(void) // MCP23S17 abrufen
       }// i < 0xFF
       i++;
    }
+   //digitalWriteFast(OSZIB,HIGH); // 9us
    return SPItastenstatus ;
 }
 
@@ -319,12 +325,12 @@ void prell_ISR(void)
    if (prellcounter >=10)
    {
       prellcounter = 0;
-      digitalWriteFast(OSZIB,LOW);
+      //digitalWriteFast(OSZIB,LOW);
       uint8_t old_tipptastenstatus = tipptastenstatus;
       //tipptastenstatus = checktasten();
-      SPIcheck  = checkSPItasten(); // Status von Input-Tasten abrufen von MCP23S17
+      SPIcheck  = checkSPItasten(); //  10us Status von Input-Tasten abrufen von MCP23S17
       
-      //  digitalWriteFast(OSZIA,HIGH);
+      //digitalWriteFast(OSZIB,HIGH);
       
       analogWrite(I_OUT, get_analogresult(0) * I_korr_array[bereichpos]); // Analog-Strom anzeigen
       ausgangsspannung = get_targetvalue(1);
@@ -367,11 +373,13 @@ void prell_ISR(void)
       //  analogWrite(POTENTIAL_OUT,(potential) * P_KORR); // Potentialausgang an Buchse ausgeben
       
       //   analogWrite(U_OUT, 1000);
-      digitalWriteFast(OSZIB,HIGH);
+      //digitalWriteFast(OSZIB,HIGH);
    }
    else
    {
-      adc->startSynchronizedSingleRead(ADC_U, ADC_I); // 
+      digitalWriteFast(OSZIA,LOW);
+      adc->startSynchronizedSingleRead(ADC_U, ADC_I); // 3 us
+      digitalWriteFast(OSZIA,HIGH);
    }
 }
 
@@ -443,9 +451,9 @@ void setup()
 {
    Serial.begin(9600);
    pinMode(OSZIA,OUTPUT);
-   digitalWriteFast(OSZIA,HIGH);
+   digitalWriteFast(OSZIA,HIGH); // setup
    pinMode(OSZIB,OUTPUT);
-   digitalWriteFast(OSZIB,HIGH);
+   digitalWriteFast(OSZIB,HIGH); // setup
    loopLED = 18;
    // LCD
    pinMode(LCD_RSDS_PIN, OUTPUT);
@@ -966,6 +974,8 @@ if (sincelcd > 20) // LCD aktualisieren
    lcd_puts("t");
    lcd_putint12(get_targetvalue(0));
    
+   lcd_putc(' ');
+   lcd_putint(outbuffer[35]); // U low
    
    // lcd_putc(' ');
    lcd_gotoxy(0,3);
@@ -976,7 +986,6 @@ if (sincelcd > 20) // LCD aktualisieren
    lcd_putc(' ');
    lcd_puts("t");
    lcd_putint12(get_targetvalue(1));
-   
    //tempcurrentcontrol = get_currentcontrol();
 
    
@@ -1009,6 +1018,7 @@ if (sincelcd > 20) // LCD aktualisieren
       //digitalWriteFast(OSZIA,HIGH);
       if (r > 0)
       {
+         
          //Serial.println("Print every 2.5 seconds");
          //Serial.printf("usb_rawhid_recv: %x\n",r);
          U_soll = ((inbuffer[4]<<8) + inbuffer[5]) ;
