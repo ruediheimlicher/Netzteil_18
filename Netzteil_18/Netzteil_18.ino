@@ -66,7 +66,7 @@
 
 ADC *adc = new ADC(); // adc object
 ADC::Sync_result result;
-IntervalTimer debouncetimer;
+IntervalTimer prelltimer;
 // Define variables and constants
 ///
 ///
@@ -165,6 +165,8 @@ volatile uint16_t controllooperrcounterC=0;
 volatile uint16_t controllooperrcounterD=0;
 
 volatile uint8_t loopcontrol=0;
+
+volatile uint8_t prellcounter = 0;
 
 volatile uint8_t currentstatus=0; // status currentcontrol
 #define CURRENTWARNUNG              1 // Warnton einschalten
@@ -309,58 +311,68 @@ uint8_t checkSPItasten(void) // MCP23S17 abrufen
 }
 
 
-#pragma mark debounce_ISR
-void debounce_ISR(void)
+#pragma mark prell_ISR
+void prell_ISR(void)
 {
-  digitalWriteFast(OSZIB,LOW);
-   uint8_t old_tipptastenstatus = tipptastenstatus;
-   //tipptastenstatus = checktasten();
-   SPIcheck  = checkSPItasten(); // Status von Input-Tasten abrufen von MCP23S17
    
- //  digitalWriteFast(OSZIA,HIGH);
-    
-   analogWrite(I_OUT, get_analogresult(0) * I_korr_array[bereichpos]); // Analog-Strom anzeigen
-   ausgangsspannung = get_targetvalue(1);
-   
-   if (ausgabestatus & (1 << POTENTIAL_BIT))
+   prellcounter++;
+   if (prellcounter >=10)
    {
-      if(since_P < POTENTIAL_ZEIT)
+      prellcounter = 0;
+      digitalWriteFast(OSZIB,LOW);
+      uint8_t old_tipptastenstatus = tipptastenstatus;
+      //tipptastenstatus = checktasten();
+      SPIcheck  = checkSPItasten(); // Status von Input-Tasten abrufen von MCP23S17
+      
+      //  digitalWriteFast(OSZIA,HIGH);
+      
+      analogWrite(I_OUT, get_analogresult(0) * I_korr_array[bereichpos]); // Analog-Strom anzeigen
+      ausgangsspannung = get_targetvalue(1);
+      
+      if (ausgabestatus & (1 << POTENTIAL_BIT))
       {
-        // analogWrite(U_OUT, potential  * U_KORR); // Potential auf Instrument anzeigen
-         analogWrite(U_OUT, (P_OFFSET + (potential - P_OFFSET)* P_INSTRUMENTKORR) * U_KORR); // Potential auf Instrument anzeigen
-      }
-      else
-      {
-         since_P = 0; // Anzeigezeit beenden
-         ausgabestatus &= ~(1 << POTENTIAL_BIT); // 
-      }
-       
-   }
-   else // Ausgangsspannung anzeigen
-   {
-      since_P = 0; // Potential anzeigen unterdrücken
- 
-      if (ausgabestatus & (1<<AUSGANG_BIT))
-      {
-         analogWrite(U_OUT, get_analogresult(1) * U_KORR);
+         if(since_P < POTENTIAL_ZEIT)
+         {
+            // analogWrite(U_OUT, potential  * U_KORR); // Potential auf Instrument anzeigen
+            analogWrite(U_OUT, (P_OFFSET + (potential - P_OFFSET)* P_INSTRUMENTKORR) * U_KORR); // Potential auf Instrument anzeigen
+         }
+         else
+         {
+            since_P = 0; // Anzeigezeit beenden
+            ausgabestatus &= ~(1 << POTENTIAL_BIT); // 
+         }
          
       }
-      else
+      else // Ausgangsspannung anzeigen
       {
-         analogWrite(U_OUT, get_targetvalue(1)* U_KORR);
+         since_P = 0; // Potential anzeigen unterdrücken
+         
+         if (ausgabestatus & (1<<AUSGANG_BIT))
+         {
+            analogWrite(U_OUT, get_analogresult(1) * U_KORR);
+            
+         }
+         else
+         {
+            analogWrite(U_OUT, get_targetvalue(1)* U_KORR);
+         }
+         
       }
-  
+      
+      //analogWrite(U_OUT, get_analogresult(1) * U_KORR); // Analog-Spannung anzeigen
+      
+      // uint16_t redpotential = potential * P_KORR; 
+      
+      analogWrite(POTENTIAL_OUT,(P_OBERGRENZE - potential) * P_KORR); // Potentialausgang an Buchse ausgeben
+      //  analogWrite(POTENTIAL_OUT,(potential) * P_KORR); // Potentialausgang an Buchse ausgeben
+      
+      //   analogWrite(U_OUT, 1000);
+      digitalWriteFast(OSZIB,HIGH);
    }
-   
-  //analogWrite(U_OUT, get_analogresult(1) * U_KORR); // Analog-Spannung anzeigen
-   
-  // uint16_t redpotential = potential * P_KORR; 
-   
-  analogWrite(POTENTIAL_OUT,(P_OBERGRENZE - potential) * P_KORR); // Potentialausgang an Buchse ausgeben
- //  analogWrite(POTENTIAL_OUT,(potential) * P_KORR); // Potentialausgang an Buchse ausgeben
-    
-//   analogWrite(U_OUT, 1000);
-   digitalWriteFast(OSZIB,HIGH);
+   else
+   {
+      adc->startSynchronizedSingleRead(ADC_U, ADC_I); // 
+   }
 }
 
 void DREHGEBER0_ISR(void) // I
@@ -529,14 +541,14 @@ void setup()
    mcp0.portPullup(0x00FF);
    mcp0.gpioPort(0xFFFF);
    
-   debouncetimer.priority(0);
-   debouncetimer.begin(debounce_ISR,2000);
+   prelltimer.priority(0);
+   prelltimer.begin(prell_ISR,30);
   
    U_soll = U_START;//  10V
    set_target_adc_val(1,U_soll);
    
    I_soll = I_START; // 100mA
-   
+
    set_target_adc_val(0,I_soll);
    
    lcd_initialize(LCD_FUNCTION_8x2, LCD_CMD_ENTRY_INC, LCD_CMD_ON);
@@ -589,7 +601,7 @@ void loop()
       
    }
    
-   if (sinceblink > 1000) 
+   if (sinceblink > 10) 
    {  
       
     //  tone(TONE,400,300);
@@ -724,22 +736,23 @@ void loop()
       //`
       adc->printError();
       adc->resetError();
-  /*    
+      
       n = RawHID.send((void*)outbuffer, 100);
       
       if (n > 0) 
       {
          Serial.print(F("Transmit packet "));
+         packetCount = packetCount + 1;
       } 
       else 
       {
          Serial.println(F("Unable to transmit packet"));
       }
-  */    
+      
       int outcontrol = (outbuffer[1]<<8) + outbuffer[2];
       Serial.printf("outH: %02X outL: %02X wert: \t%d\n",outbuffer[1],outbuffer[2],outcontrol);
       
-      packetCount = packetCount + 1;
+      
       
       /*
        lcd_gotoxy(0,1);
@@ -819,7 +832,7 @@ void loop()
     } // if sinceblink
    
 #pragma mark tasten
-if (sincelcd > 100) // LCD aktualisieren
+if (sincelcd > 20) // LCD aktualisieren
 {
    sincelcd = 0;
    // https://forum.arduino.cc/index.php?topic=353678.0
@@ -827,7 +840,7 @@ if (sincelcd > 100) // LCD aktualisieren
    regB = 0x01;   // dummy-Counter auf bit 0-4
    regB = bereichpos; // bereichpos in output-register von MCP schreiben
    uint8_t MCP_outputB = (regB & 0x07)<< 5; // Bereich auf Bit 5-7
-   
+   controllooperrcounterD++;
    mcp0.gpioWritePortA((regA | MCP_outputB)); // Ausgabe auf output-Register von MCP23S17
 
    // Taste[0]
@@ -912,7 +925,7 @@ if (sincelcd > 100) // LCD aktualisieren
    {
       //lcd_gotoxy(10,1);
       //lcd_puthex(tastenstatusarray[3].pin);
-      controllooperrcounterD++;
+      //controllooperrcounterD++;
       if (bereichpos < 4)
       {
          bereichpos++;

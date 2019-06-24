@@ -59,7 +59,7 @@ static void control_loop(void);
 //532 -ADC-library-update-now-with-support-for-Teensy-3-1
 
 #define DEBOUNCECOUNT   20
-volatile uint8_t debouncecounter = 0;
+volatile uint16_t debouncecounter = 0;
 
 void init_analog(void) 
 {
@@ -72,14 +72,14 @@ void init_analog(void)
    adc->setAveraging(4); // set number of averages 
    adc->setResolution(12); // set bits of resolution
    adc->setConversionSpeed(ADC_CONVERSION_SPEED::MED_SPEED);
-   adc->setSamplingSpeed(ADC_SAMPLING_SPEED::HIGH_SPEED);
+   adc->setSamplingSpeed(ADC_SAMPLING_SPEED::MED_SPEED);
    adc->setReference(ADC_REFERENCE::REF_3V3, ADC_0);
-   //NVIC_SET_PRIORITY(IRQ_ADC0, 0); // 0 = highest priority
+   adc->setReference(ADC_REFERENCE::REF_3V3, ADC_1);
    
    adc->enableInterrupts(ADC_0);
     
     
-   adc->startSynchronizedContinuous(ADC_U, ADC_I); // 
+//   adc->startSynchronizedContinuous(ADC_U, ADC_I); // 
    delay(100);
    
    
@@ -91,13 +91,17 @@ void adc0_isr(void)
 {
    digitalWriteFast(OSZIA,LOW); // <4us insgesamt
    
-   result = adc->readSynchronizedContinuous();
+   result = adc->readSynchronizedSingle();
    
    //analog_result[0] = adc->analogReadContinuous(ADC_0);// I
+   
    analog_result[0] = (uint16_t)result.result_adc0; // I
    
    //analog_result[1] = adc->analogReadContinuous(ADC_1);// U
    analog_result[1] = (uint16_t)result.result_adc1; // U
+   
+   adc->printError();
+  adc->resetError();
    
    //U_Pot = adc->analogRead(A9,ADC_0);
    val = analog_result[1]; // U
@@ -109,20 +113,8 @@ void adc0_isr(void)
    
    outbuffer[34] = (analog_result[1] & 0xFF00) >> 8; // HI
    outbuffer[35] = analog_result[1] & 0x00FF; // LO
-   
-   
-   
+    
    //digitalWriteFast(OSZIA,LOW);
-  /*
-   if (analog_result[0] > SH_CIR_PROT)
-   {
-      dac_val=400;
-      //dac(dac_val);
-      currentcontrol=20;
-      return;
-   }
-*/
-  // digitalWriteFast(OSZIA,LOW);
    control_loop(); // 2us
    
    digitalWriteFast(OSZIA,HIGH);
@@ -142,6 +134,7 @@ void adc1_isr(void)
    //digitalWriteFast(LED_BUILTIN, !digitalReadFast(LED_BUILTIN));
    
 }
+
 
 
 // TUX
