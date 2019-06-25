@@ -115,16 +115,19 @@
 // Taster
 
 // Umschalter Bereich
-#define UD_BEREICH_UP      0
-#define UD_BEREICH_DOWN    1
+#define BEREICH_UP      2
+#define BEREICH_DOWN    3
 
 // ON OFF 
-#define UD_ON_OFF_UP       2
-#define UD_ON_OFF_DOWN     3
+#define OUT_ON          4
+#define OUT_OFF         5
+
+#define LCD_RESET       0
+#define SAVE            1
 
 // Switch Potential 
-#define UD_POT_ON          4
-#define UD_POT_OFF         5
+#define POT_ON          4
+#define POT_OFF         5
 
 // Ausgang Potential
 #define POTENTIAL_OUT      22

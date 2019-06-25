@@ -63,7 +63,7 @@ volatile uint16_t debouncecounter = 0;
 
 void init_analog(void) 
 {
- 	analog_result[0]=50; // I
+ 	analog_result[0]=5000; // I
 	analog_result[1]=2000;  // U
 	target_val[0]=0; // initialize to zero, I, kein Strom
 	target_val[1]=0; // initialize to 5000, U
@@ -71,60 +71,27 @@ void init_analog(void)
    
    adc->setAveraging(4); // set number of averages 
    adc->setResolution(12); // set bits of resolution
-   adc->setConversionSpeed(ADC_CONVERSION_SPEED::MED_SPEED);
+   adc->setConversionSpeed(ADC_CONVERSION_SPEED::HIGH_SPEED);
    adc->setSamplingSpeed(ADC_SAMPLING_SPEED::MED_SPEED);
    adc->setReference(ADC_REFERENCE::REF_3V3, ADC_0);
    adc->setReference(ADC_REFERENCE::REF_3V3, ADC_1);
    
    adc->enableInterrupts(ADC_0);
-    
-    
-//   adc->startSynchronizedContinuous(ADC_U, ADC_I); // 
    delay(100);
    
    
  }
 
-// https://platformio.org/lib/show/355/Teensy_ADC/examples?file=analogContinuousRead.ino
-
-void adc0_isr(void) 
+void adc0_isr(void)  // ADC_CONVERSION_SPEED::HIGH_SPEED ADC_SAMPLING_SPEED::MED_SPEED: delay 12us
 {
-   digitalWriteFast(OSZIA,LOW); // <4us insgesamt
-   
    result = adc->readSynchronizedSingle();
-   
-   //analog_result[0] = adc->analogReadContinuous(ADC_0);// I
-   
    analog_result[0] = (uint16_t)result.result_adc0; // I
-   
-   //analog_result[1] = adc->analogReadContinuous(ADC_1);// U
    analog_result[1] = (uint16_t)result.result_adc1; // U
    
    adc->printError();
-  adc->resetError();
+   adc->resetError();
    
-   //U_Pot = adc->analogRead(A9,ADC_0);
-   val = analog_result[1]; // U
-   
-   
-   outbuffer[0] = 0;
-   outbuffer[32] = (analog_result[0] & 0xFF00) >> 8; // HI
-   outbuffer[33] = analog_result[0] & 0x00FF; // LO
-   
-   outbuffer[34] = (analog_result[1] & 0xFF00) >> 8; // HI
-   outbuffer[35] = analog_result[1] & 0x00FF; // LO
-    
-   //digitalWriteFast(OSZIA,LOW);
    control_loop(); // 2us
-   
-   digitalWriteFast(OSZIA,HIGH);
-   
-   debouncecounter++;
-   if (debouncecounter >= DEBOUNCECOUNT)
-   {
-      //debounce_ISR();
-      debouncecounter = 0;
-   }
 }
 
 void adc1_isr(void) 
@@ -235,7 +202,7 @@ static void  control_loop()
       currentcontrol=10; // I control
       if (analog_result[1] > target_val[1])
       {
-         controllooperrcounterB++;
+//         controllooperrcounterB++;
          loopcontrol |= (1<<1);
          // oh, voltage too high, get out of current control:
          tmp = -40;
