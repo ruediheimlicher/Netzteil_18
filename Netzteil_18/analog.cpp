@@ -24,14 +24,17 @@ extern  int readPin;
 extern int U_Pot;
 extern volatile int16_t analog_result[2]; 
 
+extern void prellcheck();
 extern void debounce_ISR(void);
-
+extern void debounce_switch(uint8_t);
 extern volatile uint8_t loopcontrol;
 extern volatile uint8_t ausgabestatus;
 extern volatile uint16_t controllooperrcounterA;
 extern volatile uint16_t controllooperrcounterB;
 extern volatile uint16_t controllooperrcounterC;
 extern volatile uint16_t controllooperrcounterD;
+
+extern ADC_ERROR resultat;
 
 //ADC::Sync_result result;
 
@@ -84,14 +87,26 @@ void init_analog(void)
 
 void adc0_isr(void)  // ADC_CONVERSION_SPEED::HIGH_SPEED ADC_SAMPLING_SPEED::MED_SPEED: delay 12us
 {
+   digitalWriteFast(OSZIA,LOW);
+   static uint8_t adc_counter = 0;
    result = adc->readSynchronizedSingle();
    analog_result[0] = (uint16_t)result.result_adc0; // I
    analog_result[1] = (uint16_t)result.result_adc1; // U
    
    adc->printError();
+   
    adc->resetError();
    
    control_loop(); // 2us
+   adc_counter++;
+   if (adc_counter > 5)
+   {
+      prellcheck(); // 20 us
+
+      adc_counter = 0;
+   }
+   //controllooperrcounterC = adc_counter;
+   digitalWriteFast(OSZIA,HIGH);
 }
 
 void adc1_isr(void) 

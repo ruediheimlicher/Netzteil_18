@@ -141,6 +141,7 @@ volatile uint16_t ausgangsspannung = 0;
 
 volatile uint8_t bereichpos = 1;
 
+ADC_ERROR resultat;
 
 uint8_t timercounter=0;
 uint16_t uptaste_history = 0;
@@ -163,6 +164,10 @@ volatile uint16_t controllooperrcounterB=0;
 volatile uint16_t controllooperrcounterC=0;
 
 volatile uint16_t controllooperrcounterD=0;
+
+uint8_t ausgangcheck=0;
+uint16_t lastausgangspannung = 0;
+
 
 volatile uint8_t loopcontrol=0;
 
@@ -193,8 +198,36 @@ tastenstatus tastenstatusarray[8] = {};
 
 uint8_t tastenbitstatus = 0; // bits fuer tasten
 
+
+// http://www.ganssle.com/debouncing-pt2.htm
+#define MAX_CHECKS 8
+volatile uint8_t last_debounced_state = 0;
+volatile uint8_t debounced_state = 0;
+volatile uint8_t state[MAX_CHECKS];
+
+uint8_t debounceindex;
+void debounce_switch(uint8_t port)
+{
+   uint8_t i,j;
+   state[debounceindex] = port;
+   ++debounceindex;
+   j = 0xFF;
+   for (i=0;i<MAX_CHECKS;i++)
+   {
+      j=j & state[i];
+   }
+   if (debounceindex >= MAX_CHECKS)
+   {
+      debounceindex = 0;
+   }
+   debounced_state = j;
+}
+
+// end ganssle
+
+
 gpio_MCP23S17 mcp0(10,0x20);//instance 0 (address A0,A1,A2 tied to 0)
-gpio_MCP23S17 mcp1(10,0x21);//instance 1 (address A0 to +, A1,A2 tied to 0)
+//gpio_MCP23S17 mcp1(10,0x21);//instance 1 (address A0 to +, A1,A2 tied to 0)
 uint8_t regA = 0x01;
 uint8_t regB = 0;
 
@@ -320,10 +353,55 @@ uint8_t checkSPItasten(void) // MCP23S17 abrufen // Takt ca. 300us
    return SPItastenstatus ;
 }
 
-void prellcheck(void)
+void prellcheck(void) // 30us debounce mit ganssle-funktion
+{
+   digitalWriteFast(OSZIB,LOW);
+   analogWrite(I_OUT, get_analogresult(0) * I_korr_array[bereichpos]); // Analog-Strom anzeigen
+   analogWrite(U_OUT, get_analogresult(1) * U_KORR);
+   //digitalWriteFast(OSZIA,LOW);
+   uint8_t tastencode = 0;
+   
+   regB = 0x01;   // dummy-Counter auf bit 0-4
+   regB = bereichpos; // bereichpos in output-register von MCP schreiben
+   regB = 2;
+   
+   uint8_t MCP_outputB = (regB & 0x07)<< 5; // Bereich auf Bit 5-7
+   //controllooperrcounterD++;
+   //controllooperrcounterC = MCP_outputB;
+  // mcp0.gpioWritePortA((regA | MCP_outputB)); // 9 us Ausgabe auf output-Register von MCP23S17
+   
+   regB = bereichpos;
+   uint8_t regBB = (regB & 0x07)<< 5;
+   mcp0.gpioWritePortA((regA | regBB));
+
+   
+   tastencode = 0xFF-mcp0.gpioReadPortB(); // 8us PORT invertieren, 1 ist aktiv
+   //digitalWriteFast(OSZIB,HIGH);
+   
+   controllooperrcounterA =tastencode; //(1<<tastenstatusarray[2].pin) | (1<<tastenstatusarray[5].pin);
+   
+   //digitalWriteFast(OSZIB,LOW);
+   
+   debounce_switch(tastencode); // 6us
+   
+   controllooperrcounterB = debounced_state;
+   
+   // test: Ausgang immer ON
+   ausgangsspannung = get_targetvalue(1);
+   ausgabestatus |= (1<<AUSGANG_BIT);
+   ausgabestatus &= ~(1 << POTENTIAL_BIT);
+   digitalWriteFast(OSZIB,HIGH);
+}
+
+void prellcheck_a(void)
 {
    analogWrite(I_OUT, get_analogresult(0) * I_korr_array[bereichpos]); // Analog-Strom anzeigen
    analogWrite(U_OUT, get_analogresult(1) * U_KORR);
+   
+   
+   
+   
+   
    
    // https://github.com/PaulStoffregen/Arduino-examples-for-Teensyduino/blob/master/02.Digital/Debounce/Debounce.ino
    uint8_t count = 0; // Anzahl aktivierter Tasten
@@ -337,7 +415,7 @@ void prellcheck(void)
    digitalWriteFast(OSZIA,HIGH);
    while (i<8) // 3us
    {
-      digitalWriteFast(OSZIB,LOW);
+      //digitalWriteFast(OSZIB,LOW);
       uint8_t pressed = 0;
       if (tastenstatusarray[i].pin < 0xFF) // pinnummer ist gesetzt
       {
@@ -369,7 +447,7 @@ void prellcheck(void)
          
       }// i < 0xFF
       i++;
-      digitalWriteFast(OSZIB,HIGH);
+      //digitalWriteFast(OSZIB,HIGH);
    }
    controllooperrcounterB = tipptastenstatus & 0x3F;
    uint8_t pressedcheck=0;
@@ -381,6 +459,9 @@ void prellcheck(void)
       }
    }
    controllooperrcounterC = pressedcheck;
+   
+   
+   
    //tipptastenstatus = 0x3F-tipptastenstatus;
    //tipptastenstatus = 0;
 //   tastenstatusarray[3].pressed = 1;
@@ -419,6 +500,8 @@ void prellcheck(void)
    }
 
   */ 
+   
+   
    ausgangsspannung = get_targetvalue(1);
    
    ausgabestatus |= (1<<AUSGANG_BIT);
@@ -486,16 +569,19 @@ void prellcheck(void)
 void prell_ISR(void)
 {   
    prellcounter++;
-   if (prellcounter >=10)
+   
+   ausgangsspannung = get_targetvalue(1);
+   ausgabestatus |= (1<<AUSGANG_BIT);
+   ausgabestatus &= ~(1 << POTENTIAL_BIT);
+   adc->startSynchronizedSingleRead(ADC_U, ADC_I); // 3 us
+   
+   if (abs(lastausgangspannung - get_analogresult(1)) > 500) // fehler
    {
-      prellcounter = 0;
-      prellcheck(); // 20 us
+      ausgangcheck++;
+      lastausgangspannung = get_analogresult(1);
    }
-   else
-   {
-      adc->startSynchronizedSingleRead(ADC_U, ADC_I); // 3 us
-   }
-}
+
+  }
 
 void DREHGEBER0_ISR(void) // I
 {
@@ -665,7 +751,7 @@ void setup()
    mcp0.gpioPort(0xFFFF);
    
    prelltimer.priority(0);
-   prelltimer.begin(prell_ISR,30);
+   prelltimer.begin(prell_ISR,40);
   
    U_soll = U_START;//  10V
    set_target_adc_val(1,U_soll);
@@ -724,7 +810,7 @@ void loop()
       
    }
    
-   if (sinceblink > 10) 
+    if (sinceblink > 10) 
    {  
       
     //  tone(TONE,400,300);
@@ -771,30 +857,10 @@ void loop()
       {
          //Serial.printf("LED OFF\n");
          digitalWriteFast(loopLED, 1);
-         //digitalWriteFast(OSZIA,HIGH);
-         //digitalWriteFast(SPI_CLK,HIGH);
-         //mcp0.gpioDigitalWrite((regA ),HIGH);
-         
-         /*
-          for (int i=0;i<16;i++)
-          {
-          mcp0.gpioDigitalWrite(i,HIGH);
-          }
-          */
          
       }
       
-   /*   
-      // https://forum.arduino.cc/index.php?topic=353678.0
-      //mcp0.gpioPort((regA << 8));
-      regB = 0x01;   // dummy-Counter auf bit 0-4
-      regB = bereichpos; // bereichpos in output-register von MCP schreiben
-      uint8_t MCP_outputB = (regB & 0x07)<< 5; // Bereich auf Bit 5-7
-      
-      mcp0.gpioWritePortA((regA | MCP_outputB)); // Ausgabe auf output-Register von MCP23S17
-    */  
        
-      
       if (regA < 0x10)
       {
          regA <<= 1;
@@ -940,20 +1006,31 @@ void loop()
       
     } // if sinceblink
    
+#pragma mark gpioWrite
+   
+   
 #pragma mark tasten
 if (sincelcd > 20) // LCD aktualisieren
 {
    sincelcd = 0;
+   
+   lcd_gotoxy(9,0);
+   //lcd_putint(lastausgangspannung & 0xFF);
+   lcd_putint(ausgangcheck);
+   lastausgangspannung = get_analogresult(1);
+   
    // https://forum.arduino.cc/index.php?topic=353678.0
    //mcp0.gpioPort((regA << 8));
    regB = 0x01;   // dummy-Counter auf bit 0-4
    regB = bereichpos; // bereichpos in output-register von MCP schreiben
    regB = 2;
    
-   uint8_t MCP_outputB = (regB & 0x07)<< 5; // Bereich auf Bit 5-7
+   //uint8_t MCP_outputB = (regB & 0x07)<< 5; // Bereich auf Bit 5-7
    //controllooperrcounterD++;
    
-   mcp0.gpioWritePortA((regA | MCP_outputB)); // Ausgabe auf output-Register von MCP23S17
+ //  mcp0.gpioWritePortA((regA | MCP_outputB)); // Ausgabe auf output-Register von MCP23S17
+   
+   
    //controllooperrcounterD =  regA;
    
    /*
@@ -969,14 +1046,15 @@ if (sincelcd > 20) // LCD aktualisieren
 
    */
    // Taste[0]
-   if (tastenstatusarray[LCD_RESET].pressed) // Reset LCD 
+  //if (tastenstatusarray[LCD_RESET].pressed) // Reset LCD 
+   if (debounced_state & (1<< LCD_RESET))
    {
       lcd_gotoxy(19,1);
       lcd_putc('A');
       lcd_initialize(LCD_FUNCTION_8x2, LCD_CMD_ENTRY_INC, LCD_CMD_ON);
       _delay_ms(100);
-
-      tastenstatusarray[LCD_RESET].pressed = 0;
+      debounced_state &= ~(1<< LCD_RESET);;
+      //tastenstatusarray[LCD_RESET].pressed = 0;
    }
    else
    {
@@ -985,12 +1063,15 @@ if (sincelcd > 20) // LCD aktualisieren
    }
    
    // Taste[1]
-   if (tastenstatusarray[SAVE].pressed) // save to EEPROM 
+   
+   //if (tastenstatusarray[SAVE].pressed) // save to EEPROM 
+   if (debounced_state & (1<< SAVE))
    {
       lcd_gotoxy(19,1);
       lcd_putc('B');
       
-      tastenstatusarray[SAVE].pressed = 0;
+      debounced_state &= ~(1<< SAVE);
+     // tastenstatusarray[SAVE].pressed = 0;
       
    }
    else
@@ -999,16 +1080,16 @@ if (sincelcd > 20) // LCD aktualisieren
       //        lcd_putc(' ');
    }
 
-   if (tastenstatusarray[OUT_ON].pressed) // Ausgang ON 
-  // if ((tipptastenstatus) & (1<<OUT_ON))
+   //if (tastenstatusarray[OUT_ON].pressed) // Ausgang ON 
+  if ((debounced_state) & (1<<OUT_ON))
    {
       lcd_gotoxy(19,1);
       lcd_putc('E');
       
 //      ausgabestatus |= (1 << AUSGANG_BIT);
       
-      tastenstatusarray[OUT_ON].pressed = 0;
-   //   ((tipptastenstatus) &= ~(1<<OUT_ON));
+     // tastenstatusarray[OUT_ON].pressed = 0;
+      ((debounced_state) &= ~(1<<OUT_ON));
    }
    else
    {
@@ -1016,16 +1097,16 @@ if (sincelcd > 20) // LCD aktualisieren
       //         lcd_putc(' ');
    }
    
-   if (tastenstatusarray[OUT_OFF].pressed) // Ausgang OFF 
-  // if ((tipptastenstatus) & (1<<OUT_OFF))
+   //if (tastenstatusarray[OUT_OFF].pressed) // Ausgang OFF 
+  if ((debounced_state) & (1<<OUT_OFF))
    {
       lcd_gotoxy(19,1);
       lcd_putc('F');
       
 //      ausgabestatus &= ~(1 << AUSGANG_BIT);
       
-      tastenstatusarray[OUT_OFF].pressed = 0;
-  //    ((tipptastenstatus) &= ~(1<<OUT_OFF));
+      //tastenstatusarray[OUT_OFF].pressed = 0;
+      ((debounced_state) &= ~(1<<OUT_OFF));
    }
    else
    {
@@ -1035,8 +1116,8 @@ if (sincelcd > 20) // LCD aktualisieren
 
    //
    // Taste[2]
-   if (tastenstatusarray[BEREICH_UP].pressed) // Taste gedrueckt ON
-//     if ((tipptastenstatus) & (1<<BEREICH_UP))
+   //if (tastenstatusarray[BEREICH_UP].pressed) // Taste gedrueckt ON
+   if ((debounced_state) & (1<<BEREICH_UP))
    {
       lcd_gotoxy(19,1);
       lcd_putc('C');
@@ -1045,8 +1126,8 @@ if (sincelcd > 20) // LCD aktualisieren
       {
          bereichpos--;
       }
-      tastenstatusarray[BEREICH_UP].pressed = 0;  
-   //   ((tipptastenstatus) &= ~(1<<BEREICH_UP));
+      //tastenstatusarray[BEREICH_UP].pressed = 0;  
+      ((debounced_state) &= ~(1<<BEREICH_UP));
    }
    else
    {
@@ -1054,8 +1135,8 @@ if (sincelcd > 20) // LCD aktualisieren
  //     lcd_putc('c');
    }
    
-   if (tastenstatusarray[BEREICH_DOWN].pressed) // Taste gedrueckt OFF
-   //if ((tipptastenstatus) & (1<<BEREICH_DOWN))
+   //if (tastenstatusarray[BEREICH_DOWN].pressed) // Taste gedrueckt OFF
+   if ((debounced_state) & (1<<BEREICH_DOWN))
    {
       //lcd_gotoxy(10,1);
       //lcd_puthex(tastenstatusarray[BEREICH_DOWN].pin);
@@ -1067,8 +1148,8 @@ if (sincelcd > 20) // LCD aktualisieren
       loopcontrol |= (1<<7);
       lcd_gotoxy(19,1);
       lcd_putc('D');
-      tastenstatusarray[BEREICH_DOWN].pressed = 0;  
-    //  tipptastenstatus &= ~(1<<BEREICH_DOWN);
+      //tastenstatusarray[BEREICH_DOWN].pressed = 0;  
+      debounced_state &= ~(1<<BEREICH_DOWN);
    }
    else
    {
@@ -1077,7 +1158,7 @@ if (sincelcd > 20) // LCD aktualisieren
    }
 
    //
-   
+   //controllooperrcounterC = bereichpos;
    tempcurrentcontrol = is_current_limit();
    
    lcd_gotoxy(0, 1);
