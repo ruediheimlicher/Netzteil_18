@@ -181,7 +181,7 @@ volatile uint8_t currentcontrol_level=0; // currentcontrol von controlloop
 volatile uint16_t currentcontrolcounter = 0; // Counter fuer Warnton
 
 float I_korr_array[5] = {I_KORR_0,I_KORR_1,I_KORR_2,I_KORR_3,I_KORR_4};
-
+char* I_einheit[] = {"mA","A"};
 
 typedef struct
 {
@@ -914,6 +914,54 @@ void loop()
       lcd_putc('V');
   //    lcd_putint12(adc_u_to_disp(U));
       lcd_putc('*');
+      
+#pragma mark Strom     
+      //Strom 
+      
+      uint16_t Strom = get_analogresult(0); ///10 * 0.86;
+      switch (bereichpos)
+      {
+         case 0: // 30mA
+         {
+            Strom /= 100;
+            Strom *= 1.15;
+            lcd_putint12(Strom);
+         }break;
+         case 1: // 100mA
+         {
+            Strom /= 10;
+            Strom *= 0.37;
+            lcd_putint12(Strom);
+            lcd_puts("mA");
+         }break;
+         case 2: // 300mA
+         {
+            Strom /= 10;
+            Strom *= 1.12;
+            lcd_putint12(Strom);
+            lcd_puts("mA");
+         }break;
+            
+         case 3://1A
+         {
+            //Strom /= 10;
+            Strom *= 0.33;
+            lcd_putint12(Strom);
+            lcd_puts("mA");
+         }break;
+         case  4: 
+         {
+            //Strom /= 10;
+            Strom *= 0.285;
+            int_to_dispstr(Strom,buf,1);
+            lcd_puts(buf);
+            lcd_puts("A");
+         }break;
+            
+      }// switch
+//      int_to_dispstr(Strom,buf,1);
+//      lcd_puts(buf);
+      
       //lcd_puts(Udisp);
       //lcd_putint(
  //     lcd_putint12(U_soll);
@@ -1021,22 +1069,7 @@ void loop()
     } // if sinceblink
    
 #pragma mark Tasten
-   
-   
-#pragma mark tasten
-if (sincelcd > 10) // LCD aktualisieren
-{
-   
-   sincelcd = 0;
-   
-   lcd_gotoxy(9,0);
-   //lcd_putint(lastausgangspannung & 0xFF);
-   lcd_putint(ausgabestatus);
-   
-   lastausgangspannung = get_analogresult(1);
-    
-   /*
-   
+      /*   
     tastenstatusarray[0].pin = LCD_RESET;
     tastenstatusarray[1].pin = SAVE;
     
@@ -1048,8 +1081,8 @@ if (sincelcd > 10) // LCD aktualisieren
    */
    if (debounced_state & (1<< LCD_RESET))
    {
-      lcd_gotoxy(19,1);
-      lcd_putc('A');
+//      lcd_gotoxy(19,1);
+//      lcd_putc('A');
       lcd_initialize(LCD_FUNCTION_8x2, LCD_CMD_ENTRY_INC, LCD_CMD_ON);
       _delay_ms(100);
       debounced_state &= ~(1<< LCD_RESET);;
@@ -1063,8 +1096,8 @@ if (sincelcd > 10) // LCD aktualisieren
    // Taste[1]
    if (debounced_state & (1<< SAVE))
    {
-      lcd_gotoxy(19,1);
-      lcd_putc('B');
+//      lcd_gotoxy(19,1);
+//      lcd_putc('B');
       debounced_state &= ~(1<< SAVE);
    }
    else
@@ -1075,8 +1108,8 @@ if (sincelcd > 10) // LCD aktualisieren
 
   if ((debounced_state) & (1<<OUT_ON))
    {
-      lcd_gotoxy(19,1);
-      lcd_putc('E');
+ //     lcd_gotoxy(19,1);
+ //     lcd_putc('E');
       
       ausgabestatus |= (1 << AUSGANG_BIT); // Ausgang ON 
       
@@ -1090,8 +1123,8 @@ if (sincelcd > 10) // LCD aktualisieren
    
   if ((debounced_state) & (1<<OUT_OFF))
    {
-      lcd_gotoxy(19,1);
-      lcd_putc('F');
+ //     lcd_gotoxy(19,1);
+ //     lcd_putc('F');
       
       ausgabestatus &= ~(1 << AUSGANG_BIT);// Ausgang OFF 
       
@@ -1107,8 +1140,8 @@ if (sincelcd > 10) // LCD aktualisieren
    // Taste[2]
    if ((debounced_state) & (1<<BEREICH_UP))
    {
-      lcd_gotoxy(19,1);
-      lcd_putc('C');
+  //    lcd_gotoxy(19,1);
+  //    lcd_putc('C');
       loopcontrol |= (1<<6);
       if (bereichpos )
       {
@@ -1129,8 +1162,8 @@ if (sincelcd > 10) // LCD aktualisieren
          bereichpos++;
       }
       loopcontrol |= (1<<7);
-      lcd_gotoxy(19,1);
-      lcd_putc('D');
+  //    lcd_gotoxy(19,1);
+//   lcd_putc('D');
       debounced_state &= ~(1<<BEREICH_DOWN);
    }
    else
@@ -1138,6 +1171,17 @@ if (sincelcd > 10) // LCD aktualisieren
   //    lcd_gotoxy(19,1);
   //    lcd_putc('d');
    }
+
+   
+   if (sincelcd > 10) // LCD aktualisieren
+   {
+      sincelcd = 0;
+      
+   //   lcd_gotoxy(9,0);
+      //lcd_putint(lastausgangspannung & 0xFF);
+   //   lcd_putint(ausgabestatus);
+      
+      lastausgangspannung = get_analogresult(1);
 
    //
    //controllooperrcounterC = bereichpos;
@@ -1164,8 +1208,8 @@ if (sincelcd > 10) // LCD aktualisieren
    lcd_puts("t");
    lcd_putint12(get_targetvalue(0));
    
-   lcd_putc(' ');
-   lcd_putint(outbuffer[35]); // U low
+//   lcd_putc(' ');
+//   lcd_putint(outbuffer[35]); // U low
    
    // lcd_putc(' ');
    lcd_gotoxy(0,3);

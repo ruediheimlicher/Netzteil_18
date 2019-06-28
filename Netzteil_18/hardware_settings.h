@@ -18,13 +18,18 @@
 #define I_MAX 250
 
 #define U_START 1000 // 5V
-#define I_START 2000
+#define I_START 3000
 
-#define I_KORR_0  1.1
-#define I_KORR_1  1.07
-#define I_KORR_2  1.06
-#define I_KORR_3  1.1
-#define I_KORR_4  0.94
+// Korrektur Instrument
+#define I_KORR_0  1.34 // 30mA
+#define I_KORR_1  1.34 // 100mA
+#define I_KORR_2  1.33 // 300mA
+#define I_KORR_3  1.18 // 1A
+#define I_KORR_4  1.14 // 3A
+
+// Korrektur digiString
+
+
 
 #define P_OFFSET 1500 // Mitte fuer Potential 6.6V
 #define P_OBERGRENZE 3000
