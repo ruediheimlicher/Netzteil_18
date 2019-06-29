@@ -166,6 +166,8 @@ volatile uint16_t controllooperrcounterC=0;
 volatile uint16_t controllooperrcounterD=0;
 
 uint8_t ausgangcheck=0;
+
+uint8_t ausgangramp = 0; // weiches einschalten
 uint16_t lastausgangspannung = 0;
 
 
@@ -228,7 +230,7 @@ void debounce_switch(uint8_t port)
 
 gpio_MCP23S17 mcp0(10,0x20);//instance 0 (address A0,A1,A2 tied to 0)
 //gpio_MCP23S17 mcp1(10,0x21);//instance 1 (address A0 to +, A1,A2 tied to 0)
-uint8_t regA = 0x01;
+uint8_t regA = 0x00;
 uint8_t regB = 0;
 
 
@@ -397,6 +399,12 @@ void prellcheck(void) // 30us debounce mit ganssle-funktion
    // end test
    //   controllooperrcounterC = ausgabestatus;
    // Steuerung Anzeigeinstrumente   
+   
+  // Strom
+   // since_I = 0; // Anzeigezeit resetten
+   
+   
+   // Potential
    if (ausgabestatus & (1 << POTENTIAL_BIT))
    {
       if(since_P < POTENTIAL_ZEIT)
@@ -415,7 +423,16 @@ void prellcheck(void) // 30us debounce mit ganssle-funktion
       since_P = 0; // Potential anzeigen unterdrücken
       if (ausgabestatus & (1<<AUSGANG_BIT))
       {
+         
+         if (ausgangramp) // einschaltverzögerung
+         {
+            ausgangramp--;
+         }
+         else
+          
+         {
          analogWrite(U_OUT, get_analogresult(1) * U_KORR); // IST-Spannung
+         }
       }
       else
       {
@@ -427,164 +444,11 @@ void prellcheck(void) // 30us debounce mit ganssle-funktion
    
    analogWrite(POTENTIAL_OUT,(P_OBERGRENZE - potential) * P_KORR); // Potentialausgang an Buchse ausgeben
    
+   digitalWriteFast(OSZIB,HIGH);
 
 }
 
 
-void prellcheck_a(void) 
-{
-   analogWrite(I_OUT, get_analogresult(0) * I_korr_array[bereichpos]); // Analog-Strom anzeigen
-   analogWrite(U_OUT, get_analogresult(1) * U_KORR);
-   // https://github.com/PaulStoffregen/Arduino-examples-for-Teensyduino/blob/master/02.Digital/Debounce/Debounce.ino
-   uint8_t count = 0; // Anzahl aktivierter Tasten
-   uint8_t i=0;
-   uint8_t tastencode = 0;
-   uint8_t check=0;
-   digitalWriteFast(OSZIA,LOW);
-   tastencode = 0xFF-mcp0.gpioReadPortB(); // 8us PORT invertieren, 1 ist aktiv
-   
-   controllooperrcounterA =tastencode; //(1<<tastenstatusarray[2].pin) | (1<<tastenstatusarray[5].pin);
-   digitalWriteFast(OSZIA,HIGH);
-   while (i<8) // 3us
-   {
-      //digitalWriteFast(OSZIB,LOW);
-      uint8_t pressed = 0;
-      if (tastenstatusarray[i].pin < 0xFF) // pinnummer ist gesetzt
-      {
-         count++;
-          
-         uint8_t pinnummer = tastenstatusarray[i].pin; // pinnummer fuer i
-         uint8_t last_pressed = (tastenstatusarray[i].pressed > 0); // zustand vor
-         uint8_t status = ((tastencode & (1<<pinnummer)) > 0); // Status der Taste. 1 = aktiv
-         
-         // If the switch changed, due to noise or pressing:
-         if (status != last_pressed)  // neuer zustand
-         {
-            // reset the debouncing timer
-            tastenstatusarray[i].lastDebounceTime = millis();
-         } 
-         
-         if ((millis() - tastenstatusarray[i].lastDebounceTime) > debounceDelay) 
-         {
-            // whatever the reading is at, it's been there for longer
-            // than the debounce delay, so take it as the actual current state:
-            tastenstatusarray[i].pressed = status;
-            tipptastenstatus |= (1<<i);
-         }
-         else
-         {
-            tipptastenstatus &= ~(1<<i);
-         }
-         
-         
-      }// i < 0xFF
-      i++;
-      //digitalWriteFast(OSZIB,HIGH);
-   }
-   controllooperrcounterB = tipptastenstatus & 0x3F;
-   uint8_t pressedcheck=0;
-   for (i=0;i<8;i++)
-   {
-      if (!tastenstatusarray[i].pressed)
-      {
-         pressedcheck |= (1<<i);
-      }
-   }
-   controllooperrcounterC = pressedcheck;
-   
-   
-   
-   //tipptastenstatus = 0x3F-tipptastenstatus;
-   //tipptastenstatus = 0;
-//   tastenstatusarray[3].pressed = 1;
-   
-   // *** test / U immer einschalten
-
-   /*
-   if (ausgabestatus & (1 << POTENTIAL_BIT))
-   {
-      if(since_P < POTENTIAL_ZEIT)
-      {
-         // analogWrite(U_OUT, potential  * U_KORR); // Potential auf Instrument anzeigen
-         analogWrite(U_OUT, (P_OFFSET + (potential - P_OFFSET)* P_INSTRUMENTKORR) * U_KORR); // Potential auf Instrument anzeigen
-      }
-      else
-      {
-         since_P = 0; // Anzeigezeit beenden
-         ausgabestatus &= ~(1 << POTENTIAL_BIT); // 
-      }
-      
-   }
-   else // Ausgangsspannung anzeigen
-   {
-      since_P = 0; // Potential anzeigen unterdrücken
-      
-      if (ausgabestatus & (1<<AUSGANG_BIT))
-      {
-         analogWrite(U_OUT, get_analogresult(1) * U_KORR);
-         
-      }
-      else
-      {
-         analogWrite(U_OUT, get_targetvalue(1)* U_KORR);
-      }
-      
-   }
-
-  */ 
-   
-   
-   ausgangsspannung = get_targetvalue(1);
-   
-   ausgabestatus |= (1<<AUSGANG_BIT);
-   ausgabestatus &= ~(1 << POTENTIAL_BIT);
- // *** end test
-   
-   
-   return;
-   
-   prellcounter = 0;
-   //digitalWriteFast(OSZIB,LOW);
-   uint8_t old_tipptastenstatus = tipptastenstatus;
-   //tipptastenstatus = checktasten();
-   SPIcheck  = checkSPItasten(); //  10us Status von Input-Tasten abrufen von MCP23S17
-   
-   //digitalWriteFast(OSZIB,HIGH);
- 
-
-// Steuerung Anzeigeinstrumente   
-   if (ausgabestatus & (1 << POTENTIAL_BIT))
-   {
-      if(since_P < POTENTIAL_ZEIT)
-      {
-         // analogWrite(U_OUT, potential  * U_KORR); // Potential auf Instrument anzeigen
-         analogWrite(U_OUT, (P_OFFSET + (potential - P_OFFSET)* P_INSTRUMENTKORR) * U_KORR); // Potential auf Instrument anzeigen
-      }
-      else
-      {
-         since_P = 0; // Anzeigezeit beenden
-         ausgabestatus &= ~(1 << POTENTIAL_BIT); // 
-      }
-   }
-   else // Ausgangsspannung anzeigen
-   {
-      since_P = 0; // Potential anzeigen unterdrücken
-      if (ausgabestatus & (1<<AUSGANG_BIT))
-      {
-         analogWrite(U_OUT, get_analogresult(1) * U_KORR);
-      }
-      else
-      {
-         analogWrite(U_OUT, get_targetvalue(1)* U_KORR);
-      }
-   }
-   
-   //analogWrite(U_OUT, get_analogresult(1) * U_KORR); // Analog-Spannung anzeigen
-    
-   analogWrite(POTENTIAL_OUT,(P_OBERGRENZE - potential) * P_KORR); // Potentialausgang an Buchse ausgeben
-    
-   //digitalWriteFast(OSZIB,HIGH);
-}
 
 #pragma mark prell_ISR
 void prell_ISR(void)
@@ -616,7 +480,8 @@ void DREHGEBER0_ISR(void) // I
        dec_targetvalue(0, 10);
    }
    
-   
+   since_I = 0; // Anzeigezeit resetten
+   ausgabestatus |= (1 << STROM_SETTING_BIT); // Auf Instrument_I_Setting anzeigen. Wird in debounce_ISR gecheckt
    //digitalWriteFast(OSZIA,HIGH);
 }
 
@@ -834,7 +699,7 @@ void loop()
     if (sinceblink > 10) 
    {  
       
-    //  tone(TONE,400,300);
+      tone(TONE,400,300);
       lcd_gotoxy(19,1);
       lcd_putc(' ');
       
@@ -881,7 +746,7 @@ void loop()
          
       }
       
-       
+ /*      
       if (regA < 0x10)
       {
          regA <<= 1;
@@ -890,6 +755,7 @@ void loop()
       {
          regA = 1;
       }
+  */
 //      lcd_gotoxy(16,0);
  //     lcd_puthex(regA);
       sinceblink = 0;
@@ -1112,7 +978,8 @@ void loop()
  //     lcd_putc('E');
       
       ausgabestatus |= (1 << AUSGANG_BIT); // Ausgang ON 
-      
+      ausgangramp = AUSGANG_RAMP_MAX;
+      regA |= (1<< LED_OUT);
       ((debounced_state) &= ~(1<<OUT_ON));
    }
    else
@@ -1127,7 +994,7 @@ void loop()
  //     lcd_putc('F');
       
       ausgabestatus &= ~(1 << AUSGANG_BIT);// Ausgang OFF 
-      
+      regA &= ~(1<< LED_OUT);
       debounced_state &= ~(1<<OUT_OFF);
    }
    else
@@ -1186,6 +1053,7 @@ void loop()
    //
    //controllooperrcounterC = bereichpos;
    tempcurrentcontrol = is_current_limit();
+      tempcurrentcontrol   = (loopcontrol == 16);
    
    lcd_gotoxy(0, 1);
    lcd_puthex(ausgabestatus);

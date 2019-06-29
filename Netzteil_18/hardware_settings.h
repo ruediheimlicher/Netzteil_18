@@ -97,15 +97,27 @@
 #define POTENTIAL_BIT   0     // gesetzt in ISR, Potential anzeigen bei Aenderung
 #define POTENTIAL_ZEIT   2000    // Anzeigezeit
 
+#define STROM_SETTING_BIT 1 // gesetzt in ISR, Strom-Setting zeigen bei Aenderung
+#define STROM_SETTING_ZEIT 2000 // Anzeigezeit
+
+
 #define AUSGANG_BIT  2   // gesetzt, wenn Ausgang ON
+
+#define AUSGANG_RAMP_MAX   0xFF
+
 #define CURRENTLIMIT_BIT 4    // gesetzt wenn currentcontrol > 0 
 #define CURRENTLIMIT_TONE_BIT 5  // Warnton 
 #define CURRENTLIMIT_ZEIT 1000 // Anzeigezeit der Einstellung
+
 
 #define ON_OFF_0        4 // OFF  schalten
 #define ON_OFF_1        5 // ON schalten
 
 
+
+// Ausgang SR regA
+#define LED_OUT   0
+#define LED_I_WARRN  1
 
 // Eingang SR
 
@@ -135,7 +147,7 @@
 #define POT_OFF         5
 
 // Ausgang Potential
-#define POTENTIAL_OUT      22
+#define POTENTIAL_OUT   22
 
 #define SPI_CLK   13
 #define SPI_MISO  12

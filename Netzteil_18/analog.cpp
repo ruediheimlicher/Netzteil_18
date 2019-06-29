@@ -99,7 +99,7 @@ void adc0_isr(void)  // ADC_CONVERSION_SPEED::HIGH_SPEED ADC_SAMPLING_SPEED::MED
    
    control_loop(); // 2us
    adc_counter++;
-   if (adc_counter > 5)
+   if (adc_counter > 32)
    {
       prellcheck(); // 20 us
 
