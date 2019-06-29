@@ -113,15 +113,11 @@
 #define ON_OFF_0        4 // OFF  schalten
 #define ON_OFF_1        5 // ON schalten
 
-
-
 // Ausgang SR regA
 #define LED_OUT   0
 #define LED_I_WARRN  1
 
 // Eingang SR
-
-
 
 #define DREHGEBER0_ANZ_POS 4096          // Anzahl Schalterstellugen
 

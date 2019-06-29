@@ -403,13 +403,12 @@ void prellcheck(void) // 30us debounce mit ganssle-funktion
   // Strom
    // since_I = 0; // Anzeigezeit resetten
    
-   //   // Instrumente dauernd anzeigen analogWrite(I_OUT, get_analogresult(0) * I_korr_array[bereichpos]); // Analog-Strom anzeigen
 
    if (ausgabestatus & (1 << STROM_SETTING_BIT))
    {
       if (since_I < STROM_SETTING_ZEIT) //Strom-Setting anzeigen
       {
-         analogWrite(I_OUT, get_targetvalue(0)* I_korr_array[bereichpos]); // SOLL-Strom)
+         analogWrite(I_OUT, get_targetvalue(0)* I_korr_array[bereichpos]); // Setting-Strom anzeigen)
       }
       else 
       {
@@ -422,7 +421,7 @@ void prellcheck(void) // 30us debounce mit ganssle-funktion
    else // Ausgangsstrom anzeigen
    {
       since_I = 0;// Anzeigezeit beenden
-      analogWrite(I_OUT, get_analogresult(0)* I_korr_array[bereichpos]); // SOLL-Strom)
+      analogWrite(I_OUT, get_analogresult(0)* I_korr_array[bereichpos]); // IST-Strom anzeigen)
    }
    
    // Potential
