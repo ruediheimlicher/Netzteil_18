@@ -200,14 +200,15 @@ tastenstatus tastenstatusarray[8] = {};
 
 uint8_t tastenbitstatus = 0; // bits fuer tasten
 
+volatile uint8_t tastencode = 0;
 
 // http://www.ganssle.com/debouncing-pt2.htm
 #define MAX_CHECKS 8
 volatile uint8_t last_debounced_state = 0;
 volatile uint8_t debounced_state = 0;
-volatile uint8_t state[MAX_CHECKS];
+volatile uint8_t state[MAX_CHECKS] = {0};
 
-uint8_t debounceindex;
+volatile uint8_t debounceindex = 0;
 void debounce_switch(uint8_t port)
 {
    uint8_t i,j;
@@ -218,11 +219,13 @@ void debounce_switch(uint8_t port)
    {
       j=j & state[i];
    }
+   debounced_state = j;
+   
    if (debounceindex >= MAX_CHECKS)
    {
       debounceindex = 0;
    }
-   debounced_state = j;
+   
 }
 
 // end ganssle
@@ -317,18 +320,18 @@ uint8_t checktasten(void)
    return tipptastenstatus ;
 }
 
-uint8_t checkSPItasten(void) // MCP23S17 abrufen // Takt ca. 300us
+uint8_t checkSPItasten() // MCP23S17 abrufen // Takt ca. 300us
 {
    uint8_t count = 0; // Anzahl aktivierter Tasten
    uint8_t i=0;
-   uint8_t tastencode = 0;
+   //uint8_t tastencode = 0;
    uint8_t check=0;
    //digitalWriteFast(OSZIB,LOW); // 
-   tastencode = 0xFF - mcp0.gpioReadPortB(); // 8 us active taste ist LO > invertieren
+   //tastencode = 0xFF - mcp0.gpioReadPortB(); // 8 us active taste ist LO > invertieren
      
    //digitalWriteFast(OSZIB,HIGH);
    controllooperrcounterC++;
-   
+   controllooperrcounterD = tastencode;
    //digitalWriteFast(OSZIB,LOW);
    while (i<8) // 1us
    {
@@ -351,42 +354,53 @@ uint8_t checkSPItasten(void) // MCP23S17 abrufen // Takt ca. 300us
       }// i < 0xFF
       i++;
    }
+   //controllooperrcounterD = count;
    //digitalWriteFast(OSZIB,HIGH); // 9us
    return SPItastenstatus ;
 }
 
+
+void debounce_ISR(void)
+{
+   //  digitalWriteFast(OSZIA,LOW);
+   uint8_t old_tipptastenstatus = tipptastenstatus;
+   //tipptastenstatus = checktasten();
+   
+   //SPIcheck  = checkSPItasten(); 
+   //debounced_state = checkSPItasten(); 
+   //  digitalWriteFast(OSZIA,HIGH);
+   
+   analogWrite(I_OUT, get_analogresult(0));
+   
+   analogWrite(U_OUT, get_analogresult(1) * U_KORR); 
+   analogWrite(POTENTIAL_OUT,(P_OBERGRENZE - potential) * P_KORR); // Potentialausgang an Buchse ausgeben
+   
+   //   analogWrite(U_OUT, 1000);
+}
+
+
 void prellcheck(void) // 30us debounce mit ganssle-funktion
 {
    digitalWriteFast(OSZIB,LOW);
-   
-   // Instrumente dauernd anzeigen
- //  analogWrite(I_OUT, get_analogresult(0) * I_korr_array[bereichpos]); // Analog-Strom anzeigen
-   
-//   analogWrite(U_OUT, get_analogresult(1) * U_KORR);
-   //digitalWriteFast(OSZIA,LOW);
-   uint8_t tastencode = 0;
-   
-   regB = 0x01;   // dummy-Counter auf bit 0-4
-   regB = bereichpos; // bereichpos in output-register von MCP schreiben
-   regB = 2;
-   
-   uint8_t MCP_outputB = (regB & 0x07)<< 5; // Bereich auf Bit 5-7
-   //controllooperrcounterD++;
-   //controllooperrcounterC = MCP_outputB;
-  // mcp0.gpioWritePortA((regA | MCP_outputB)); // 9 us Ausgabe auf output-Register von MCP23S17
+      
+    
+   // MCP lesen
    
    regB = bereichpos;
    uint8_t regBB = (regB & 0x07)<< 5;
-   mcp0.gpioWritePortA((regA | regBB));
-
-   tastencode = 0xFF-mcp0.gpioReadPortB(); // 8us PORT invertieren, 1 ist aktiv
+   mcp0.gpioWritePortA((regA | regBB)); // output
+   tastencode = 0xFF-mcp0.gpioReadPortB(); // input 8us . PORTB invertieren, 1 ist aktiv
    //digitalWriteFast(OSZIB,HIGH);
    
    controllooperrcounterA =tastencode; //(1<<tastenstatusarray[2].pin) | (1<<tastenstatusarray[5].pin);
    
    //digitalWriteFast(OSZIB,LOW);
    
-   debounce_switch(tastencode); // 6us
+   //debounce_switch(tastencode); // 6us
+   debounced_state = checkSPItasten();
+   
+   //mcp0.gpioWritePortA((regA | regBB)); // output
+   
    controllooperrcounterB = debounced_state;
       
    // test: Ausgang immer ON
@@ -473,7 +487,7 @@ void prellcheck(void) // 30us debounce mit ganssle-funktion
 #pragma mark prell_ISR
 void prell_ISR(void)
 {   
-   prellcounter++;
+   //prellcounter++;
    
    ausgangsspannung = get_targetvalue(1);
  //  ausgabestatus |= (1<<AUSGANG_BIT);
@@ -541,7 +555,7 @@ void DREHGEBER2_ISR(void) // P wird geaendert
          potential = 0;
       }
    }
-   controllooperrcounterC++;;
+   //controllooperrcounterC++;;
    since_P = 0; // Anzeigezeit resetten, 
    U_instrumentcounter = 0; // Anzeigezeit reset Anzeigezeit auf 0 setzen, wird in 
    ausgabestatus |= (1 << POTENTIAL_BIT); // Auf Instrument_U Potential anzeigen. Wird in debounce_ISR gecheckt
@@ -965,13 +979,16 @@ void loop()
     tastenstatusarray[4].pin = OUT_ON;
     tastenstatusarray[5].pin = OUT_OFF;
    */
-   if (debounced_state & (1<< LCD_RESET))
+   
+   if (tastenstatusarray[LCD_RESET].pressed)
+   //if (debounced_state & (1<< LCD_RESET))
    {
 //      lcd_gotoxy(19,1);
 //      lcd_putc('A');
       lcd_initialize(LCD_FUNCTION_8x2, LCD_CMD_ENTRY_INC, LCD_CMD_ON);
       _delay_ms(100);
-      debounced_state &= ~(1<< LCD_RESET);;
+      tastenstatusarray[LCD_RESET].pressed = 0;
+     // debounced_state &= ~(1<< LCD_RESET);;
    }
    else
    {
@@ -980,11 +997,13 @@ void loop()
    }
    
    // Taste[1]
-   if (debounced_state & (1<< SAVE))
+   if (tastenstatusarray[SAVE].pressed)
+   //if (debounced_state & (1<< SAVE))
    {
 //      lcd_gotoxy(19,1);
 //      lcd_putc('B');
-      debounced_state &= ~(1<< SAVE);
+      tastenstatusarray[SAVE].pressed = 0;
+      //debounced_state &= ~(1<< SAVE);
    }
    else
    {
@@ -992,7 +1011,8 @@ void loop()
       //        lcd_putc(' ');
    }
 
-  if ((debounced_state) & (1<<OUT_ON))
+   if (tastenstatusarray[OUT_ON].pressed)
+  //if ((debounced_state) & (1<<OUT_ON))
    {
  //     lcd_gotoxy(19,1);
  //     lcd_putc('E');
@@ -1000,7 +1020,8 @@ void loop()
       ausgabestatus |= (1 << AUSGANG_BIT); // Ausgang ON 
       ausgangramp = AUSGANG_RAMP_MAX;
       regA |= (1<< LED_OUT);
-      ((debounced_state) &= ~(1<<OUT_ON));
+      tastenstatusarray[OUT_ON].pressed = 0;
+      //((debounced_state) &= ~(1<<OUT_ON));
    }
    else
    {
@@ -1008,13 +1029,15 @@ void loop()
       //         lcd_putc(' ');
    }
    
-  if ((debounced_state) & (1<<OUT_OFF))
+   if (tastenstatusarray[OUT_OFF].pressed)
+  //if ((debounced_state) & (1<<OUT_OFF))
    {
  //     lcd_gotoxy(19,1);
  //     lcd_putc('F');
       
       ausgabestatus &= ~(1 << AUSGANG_BIT);// Ausgang OFF 
       regA &= ~(1<< LED_OUT);
+      tastenstatusarray[OUT_OFF].pressed = 0;
       debounced_state &= ~(1<<OUT_OFF);
    }
    else
@@ -1025,7 +1048,8 @@ void loop()
 
    //
    // Taste[2]
-   if ((debounced_state) & (1<<BEREICH_UP))
+   if (tastenstatusarray[BEREICH_UP].pressed) // Taste gedrueckt ON
+   //if ((debounced_state) & (1<<BEREICH_UP))
    {
   //    lcd_gotoxy(19,1);
   //    lcd_putc('C');
@@ -1034,7 +1058,8 @@ void loop()
       {
          bereichpos--;
       }
-      debounced_state &= ~(1<<BEREICH_UP);
+      tastenstatusarray[BEREICH_UP].pressed = 0;
+      //debounced_state &= ~(1<<BEREICH_UP);
    }
    else
    {
@@ -1042,7 +1067,8 @@ void loop()
  //     lcd_putc('c');
    }
    
-   if ((debounced_state) & (1<<BEREICH_DOWN))
+   if (tastenstatusarray[BEREICH_DOWN].pressed) // Taste gedrueckt OFF
+   //if ((debounced_state) & (1<<BEREICH_DOWN))
    {
       if (bereichpos < 4)
       {
@@ -1051,7 +1077,8 @@ void loop()
       loopcontrol |= (1<<7);
   //    lcd_gotoxy(19,1);
 //   lcd_putc('D');
-      debounced_state &= ~(1<<BEREICH_DOWN);
+      tastenstatusarray[BEREICH_DOWN].pressed = 0;
+      //debounced_state &= ~(1<<BEREICH_DOWN);
    }
    else
    {

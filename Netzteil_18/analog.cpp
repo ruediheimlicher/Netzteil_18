@@ -93,13 +93,13 @@ void adc0_isr(void)  // ADC_CONVERSION_SPEED::HIGH_SPEED ADC_SAMPLING_SPEED::MED
    analog_result[0] = (uint16_t)result.result_adc0; // I
    analog_result[1] = (uint16_t)result.result_adc1; // U
    
-   adc->printError();
+ //  adc->printError();
    
    adc->resetError();
    
    control_loop(); // 2us
    adc_counter++;
-   if (adc_counter > 32)
+   if (adc_counter > 8)
    {
       prellcheck(); // 20 us
 
