@@ -781,6 +781,7 @@ void loop()
       }
       
  /*      
+  // regA als rundlauf
       if (regA < 0x10)
       {
          regA <<= 1;
@@ -801,7 +802,6 @@ void loop()
       lcd_gotoxy(0,0);
       lcd_putc('U');
       
- //     uint16_t U = get_analogresult(1);
       uint16_t U = ausgangsspannung;
  //     lcd_putint12(U);
       lcd_putc(' ');
@@ -869,10 +869,7 @@ void loop()
       //lcd_puts(buf);
       // "sincePrint" auto-increases
       
-      
-       
-      
-      
+
       //lcd_puts("adc: ");
       int out0 = outbuffer[2];
       // val = analogRead(0);
@@ -908,7 +905,7 @@ void loop()
       }
       
       int outcontrol = (outbuffer[1]<<8) + outbuffer[2];
-      Serial.printf("outH: %02X outL: %02X wert: \t%d\n",outbuffer[1],outbuffer[2],outcontrol);
+      //Serial.printf("outH: %02X outL: %02X wert: \t%d\n",outbuffer[1], outbuffer[2],outcontrol);
       
       
       
@@ -933,39 +930,12 @@ void loop()
        
        */
       uint16_t temp = 0;
-      
-      //  adc->disableInterrupts(ADC_0);
-      //  adc->disableInterrupts(ADC_1);
-      //   temp = analogRead(9);
-      //   adc->enableInterrupts(ADC_0);
-      //   adc->enableInterrupts(ADC_1);
-      
-      //    lcd_gotoxy(2,2);
-      //    lcd_putint12(temp);
-#pragma mark debounce
+      #pragma mark debounce
  //     lcd_gotoxy(12,1);
  //     lcd_puthex(SPItastenstatus);
       SPItastenstatus=0;
       
-//      lcd_gotoxy(0,1);
-//      lcd_putc('d');
-//      lcd_putc(' ');
-//      lcd_putint12(drehgeber1_count);
-//      lcd_putc(' ');
-//      lcd_putc('c');
-//      lcd_puthex(SPIcheck);
-      
-//      lcd_gotoxy(18,1);
-//      lcd_puthex(tastenbitstatus);
       tastenbitstatus = 0;
-         //lcd_putint1(drehgeber1_dir);
-      // if ((timercounter % 1000) == 0)
-      {
-         //lcd_putc(' ');
-         
-      }
-      lcd_gotoxy(12, 0);
-      //lcd_puts("cc:");
     } // if sinceblink
    
 #pragma mark Tasten
@@ -981,38 +951,23 @@ void loop()
    */
    
    if (tastenstatusarray[LCD_RESET].pressed)
-   //if (debounced_state & (1<< LCD_RESET))
    {
 //      lcd_gotoxy(19,1);
 //      lcd_putc('A');
       lcd_initialize(LCD_FUNCTION_8x2, LCD_CMD_ENTRY_INC, LCD_CMD_ON);
       _delay_ms(100);
       tastenstatusarray[LCD_RESET].pressed = 0;
-     // debounced_state &= ~(1<< LCD_RESET);;
-   }
-   else
-   {
-      //        lcd_gotoxy(14,1);
-      //        lcd_putc(' ');
    }
    
    // Taste[1]
    if (tastenstatusarray[SAVE].pressed)
-   //if (debounced_state & (1<< SAVE))
    {
 //      lcd_gotoxy(19,1);
 //      lcd_putc('B');
       tastenstatusarray[SAVE].pressed = 0;
-      //debounced_state &= ~(1<< SAVE);
    }
-   else
-   {
-      //        lcd_gotoxy(14,1);
-      //        lcd_putc(' ');
-   }
-
+ 
    if (tastenstatusarray[OUT_ON].pressed)
-  //if ((debounced_state) & (1<<OUT_ON))
    {
  //     lcd_gotoxy(19,1);
  //     lcd_putc('E');
@@ -1021,16 +976,9 @@ void loop()
       ausgangramp = AUSGANG_RAMP_MAX;
       regA |= (1<< LED_OUT);
       tastenstatusarray[OUT_ON].pressed = 0;
-      //((debounced_state) &= ~(1<<OUT_ON));
-   }
-   else
-   {
-      //        lcd_gotoxy(14,1);
-      //         lcd_putc(' ');
    }
    
    if (tastenstatusarray[OUT_OFF].pressed)
-  //if ((debounced_state) & (1<<OUT_OFF))
    {
  //     lcd_gotoxy(19,1);
  //     lcd_putc('F');
@@ -1038,18 +986,11 @@ void loop()
       ausgabestatus &= ~(1 << AUSGANG_BIT);// Ausgang OFF 
       regA &= ~(1<< LED_OUT);
       tastenstatusarray[OUT_OFF].pressed = 0;
-      debounced_state &= ~(1<<OUT_OFF);
-   }
-   else
-   {
-      //       lcd_gotoxy(14,1);
-      //        lcd_putc(' ');
    }
 
    //
    // Taste[2]
    if (tastenstatusarray[BEREICH_UP].pressed) // Taste gedrueckt ON
-   //if ((debounced_state) & (1<<BEREICH_UP))
    {
   //    lcd_gotoxy(19,1);
   //    lcd_putc('C');
@@ -1059,16 +1000,9 @@ void loop()
          bereichpos--;
       }
       tastenstatusarray[BEREICH_UP].pressed = 0;
-      //debounced_state &= ~(1<<BEREICH_UP);
-   }
-   else
-   {
- //     lcd_gotoxy(19,1);
- //     lcd_putc('c');
    }
    
    if (tastenstatusarray[BEREICH_DOWN].pressed) // Taste gedrueckt OFF
-   //if ((debounced_state) & (1<<BEREICH_DOWN))
    {
       if (bereichpos < 4)
       {
@@ -1078,12 +1012,6 @@ void loop()
   //    lcd_gotoxy(19,1);
 //   lcd_putc('D');
       tastenstatusarray[BEREICH_DOWN].pressed = 0;
-      //debounced_state &= ~(1<<BEREICH_DOWN);
-   }
-   else
-   {
-  //    lcd_gotoxy(19,1);
-  //    lcd_putc('d');
    }
 
    
