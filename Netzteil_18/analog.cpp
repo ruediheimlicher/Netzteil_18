@@ -137,8 +137,8 @@ uint8_t is_current_limit(void)
    {
       return(1);
    }
-   return(0);
-}
+      return(0);
+   }
 
 /* set the target adc value for the control loop
  * values for item: 1 = u, 0 = i, units must be of the same as the values 
@@ -185,18 +185,19 @@ void dec_targetvalue(uint8_t channel, uint16_t dec) // targetvalue decrementiere
 
 static void  control_loop()
 {
-   
    //digitalWriteFast(OSZIB,LOW);
    int16_t tmp;
    tmp=target_val[0] - analog_result[0]; // current diff
+   
+   analogWrite(TONE, abs(tmp));
+   
    if (tmp < 0) // current too high
    {
-      controllooperrcounterA++;
+      //controllooperrcounterA++;
       //digitalWriteFast(OSZIA,LOW);
       loopcontrol &= ~(1<<4);
       loopcontrol &= ~(1<<5);
       loopcontrol &= ~(1<<6);
-
       loopcontrol &= ~(1<<7);
 
       loopcontrol |= (1<<0);
@@ -209,18 +210,18 @@ static void  control_loop()
       // and then back to current control. Permanent
       // hopping would lead to oscillation and current
       // spikes.
-      if (tmp>-20) 
+      if (tmp>-2) 
       {
          tmp=0;
       }    
-      //currentcontrol=64; // I control
+      //currentcontrol=128; // I control
       currentcontrol=10; // I control
       if (analog_result[1] > target_val[1])
       {
 //         controllooperrcounterB++;
          loopcontrol |= (1<<1);
          // oh, voltage too high, get out of current control:
-         tmp = -40;
+         tmp = -20;
          currentcontrol=0; // U control
          
       }
@@ -236,7 +237,7 @@ static void  control_loop()
       // down (tmp is negative). To increase the current
       // we come here to voltage control. We must slowly
       // count up.
-      loopcontrol |= (1<<4);
+      loopcontrol |= (1<<4); // 16
       tmp = 1 + target_val[1]  - analog_result[1]; // voltage diff
       if (currentcontrol)
       {
@@ -251,8 +252,8 @@ static void  control_loop()
          }
       }
    }
-   if (tmp> -3 && tmp<4)
-   //if (tmp> -32 && tmp< 32)
+   //if (tmp> -3 && tmp<4)
+   if (tmp> -18 && tmp< 24)
    { // avoid LSB bouncing if we are close
       tmp=0;
    }

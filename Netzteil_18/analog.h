@@ -28,6 +28,7 @@ extern uint8_t is_current_limit(void);
 extern int16_t get_dacval(void);
 int16_t get_targetvalue(uint8_t channel);
 uint8_t get_currentcontrol(void);
+extern uint8_t get_loopcontrol(void);
 extern uint16_t readPot(uint8_t pin);
 //extern static void control_loop(void);
 extern void set_target_U(uint16_t U_target);

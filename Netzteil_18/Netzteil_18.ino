@@ -330,8 +330,8 @@ uint8_t checkSPItasten() // MCP23S17 abrufen // Takt ca. 300us
    //tastencode = 0xFF - mcp0.gpioReadPortB(); // 8 us active taste ist LO > invertieren
      
    //digitalWriteFast(OSZIB,HIGH);
-   controllooperrcounterC++;
-   controllooperrcounterD = tastencode;
+   //controllooperrcounterC++;
+   //controllooperrcounterD = tastencode;
    //digitalWriteFast(OSZIB,LOW);
    while (i<8) // 1us
    {
@@ -381,18 +381,20 @@ void debounce_ISR(void)
 
 void prellcheck(void) // 30us debounce mit ganssle-funktion
 {
-   digitalWriteFast(OSZIB,LOW);
+   //digitalWriteFast(OSZIB,LOW);
       
     
    // MCP lesen
    
    regB = bereichpos;
+//   digitalWriteFast(OSZIB,LOW);
    uint8_t regBB = (regB & 0x07)<< 5;
    mcp0.gpioWritePortA((regA | regBB)); // output
+  //digitalWriteFast(OSZIB,HIGH);
    tastencode = 0xFF-mcp0.gpioReadPortB(); // input 8us . PORTB invertieren, 1 ist aktiv
-   //digitalWriteFast(OSZIB,HIGH);
+    //digitalWriteFast(OSZIB,HIGH);
    
-   controllooperrcounterA =tastencode; //(1<<tastenstatusarray[2].pin) | (1<<tastenstatusarray[5].pin);
+   //controllooperrcounterA =tastencode; //(1<<tastenstatusarray[2].pin) | (1<<tastenstatusarray[5].pin);
    
    //digitalWriteFast(OSZIB,LOW);
    
@@ -401,7 +403,7 @@ void prellcheck(void) // 30us debounce mit ganssle-funktion
    
    //mcp0.gpioWritePortA((regA | regBB)); // output
    
-   controllooperrcounterB = debounced_state;
+   //controllooperrcounterB = debounced_state;
       
    // test: Ausgang immer ON
    /*
@@ -478,7 +480,7 @@ void prellcheck(void) // 30us debounce mit ganssle-funktion
    
    analogWrite(POTENTIAL_OUT,(P_OBERGRENZE - potential) * P_KORR); // Potentialausgang an Buchse ausgeben
    
-   digitalWriteFast(OSZIB,HIGH);
+  // digitalWriteFast(OSZIB,HIGH);
 
 }
 
@@ -612,6 +614,7 @@ void setup()
    
    pinMode(POTENTIAL_OUT, OUTPUT);
    
+   
    // debounce
    
    for (uint8_t i= 0;i<8;i++)
@@ -685,30 +688,41 @@ void setup()
    lcd_puts("Teensy");
 
 }
-uint8_t tempcurrentcontrol=0;
+uint8_t currentcontrolstatus=0;
 void loop()
 {
 
    int n;
    
-   if (tempcurrentcontrol)
+   currentcontrolstatus = get_loopcontrol(); // von loopcontrol
+   controllooperrcounterA = currentcontrolstatus;
+   if (currentcontrolstatus == 16) // 16, voltage control
    {
+      currentstatus &= ~(1<<CURRENTWARNUNG); // Warnung off
+      since_WARN=0;
       
       if (currentcontrol_level == 0) // Aenderung: war bisher null
       {
-         currentstatus |=  (1<<CURRENTWARNUNG); // Warnung on
+         currentstatus &= ~(1<<CURRENTWARNUNG); // Warnung off
          //
          //tone(TONE,400,300);
-         tempcurrentcontrol = currentcontrol_level;
       }
    }
-   else
+   else // current control
    {
-      currentstatus &= ~(1<<CURRENTWARNUNG); // Warnung off
+      if (!(currentstatus & (1<<CURRENTWARNUNG)))
+      {
+         since_WARN=0;
+      }
+      currentstatus |= (1<<CURRENTWARNUNG); // Warnung on
       currentcontrolcounter = 0;
+      
    }
    
-   if (tempcurrentcontrol & (1<<CURRENTWARNUNG))
+   controllooperrcounterB = currentstatus;
+   
+   controllooperrcounterC = currentcontrolcounter;
+   if (currentstatus & (1<<CURRENTWARNUNG))
    {
       
       if (since_WARN > CURRENTWARNUNG_DELAY) // Delay abgelaufen. Ton
@@ -717,7 +731,7 @@ void loop()
          currentcontrolcounter++;
          if (currentcontrolcounter < CURRENTWARNUNG_ANZAHL)
          {
-            tone(TONE,400,300);
+   //         tone(TONE,400,300);
          }
          else
          {
@@ -726,14 +740,12 @@ void loop()
          }
          
       }
-      
-      
-   }
+    }
    
-    if (sinceblink > 10) 
+   if (sinceblink > 10) 
    {  
       
-      tone(TONE,400,300);
+  //    tone(TONE,400,300);
       lcd_gotoxy(19,1);
       lcd_putc(' ');
       
@@ -1027,9 +1039,9 @@ void loop()
 
    //
    //controllooperrcounterC = bereichpos;
-   tempcurrentcontrol = is_current_limit();
-      tempcurrentcontrol   = (loopcontrol == 16);
-   
+   currentcontrolstatus = is_current_limit();
+ 
+      
    lcd_gotoxy(0, 1);
    lcd_puthex(ausgabestatus);
    lcd_putc(' ');
@@ -1063,11 +1075,11 @@ void loop()
    lcd_putc(' ');
    lcd_puts("t");
    lcd_putint12(get_targetvalue(1));
-   //tempcurrentcontrol = get_currentcontrol();
+   //currentcontrolstatus = get_currentcontrol();
 
    
    lcd_gotoxy(14,3);
-   //tempcurrentcontrol = get_currentcontrol();
+   //currentcontrolstatus = get_currentcontrol();
    //lcd_putc(' ');
    lcd_putint(loopcontrol);
    
