@@ -125,6 +125,12 @@ int16_t get_dacval(void)
 	return(dac_val);
 }
 
+uint8_t get_loopcontrol(void)
+{
+   return loopcontrol;
+}
+
+
 uint8_t get_currentcontrol(void)
 {
    return currentcontrol;

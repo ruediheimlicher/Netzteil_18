@@ -694,7 +694,7 @@ void loop()
 
    int n;
    
-   currentcontrolstatus = get_loopcontrol(); // von loopcontrol
+  // currentcontrolstatus = get_loopcontrol(); // von loopcontrol
    controllooperrcounterA = currentcontrolstatus;
    if (currentcontrolstatus == 16) // 16, voltage control
    {
