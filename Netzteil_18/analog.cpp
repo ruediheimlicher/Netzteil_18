@@ -195,7 +195,9 @@ static void  control_loop()
    int16_t tmp;
    tmp=target_val[0] - analog_result[0]; // current diff
    
-   analogWrite(TONE, abs(tmp));
+   //analogWrite(TONE, abs(tmp));
+   
+   tmp *= FAKTOR;
    
    if (tmp < 0) // current too high
    {
@@ -220,8 +222,8 @@ static void  control_loop()
       {
          tmp=0;
       }    
-      //currentcontrol=128; // I control
-      currentcontrol=10; // I control
+      currentcontrol=128; // I control
+      //currentcontrol=10; // I control
       if (analog_result[1] > target_val[1])
       {
 //         controllooperrcounterB++;
@@ -237,6 +239,8 @@ static void  control_loop()
    {
       loopcontrol &= ~(1<<0);
       loopcontrol &= ~(1<<1);
+      loopcontrol &= ~(1<<2);
+      loopcontrol &= ~(1<<5);
       // ** voltage control:
       //
       // if we are in current control then we can only go
@@ -245,6 +249,7 @@ static void  control_loop()
       // count up.
       loopcontrol |= (1<<4); // 16
       tmp = 1 + target_val[1]  - analog_result[1]; // voltage diff
+      //tmp *= FAKTOR;
       if (currentcontrol)
       {
        //  controllooperrcounterC++;
@@ -258,8 +263,8 @@ static void  control_loop()
          }
       }
    }
-   //if (tmp> -3 && tmp<4)
-   if (tmp> -18 && tmp< 24)
+   if (tmp> -3 && tmp<4)
+   //if (tmp> -18 && tmp< 24)
    { // avoid LSB bouncing if we are close
       tmp=0;
    }
@@ -284,7 +289,7 @@ static void  control_loop()
    {
       tmp=-1;
    }
-   
+ //  tmp /= FAKTOR;
    dac_val+=tmp;
    
    if (dac_val>0x0FFF) // 4095

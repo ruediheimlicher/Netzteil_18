@@ -19,6 +19,7 @@ extern ADC *adc;
 #define OSZIA 15
 #define OSZIB 17
 
+#define FAKTOR 1
 
 extern void init_analog(void);
 /* get the result of an analog conversion */

@@ -691,56 +691,47 @@ void setup()
 uint8_t currentcontrolstatus=0;
 void loop()
 {
-
    int n;
-   
-  // currentcontrolstatus = get_loopcontrol(); // von loopcontrol
-   controllooperrcounterA = currentcontrolstatus;
+   // Stromwarnung
+   currentcontrolstatus = get_loopcontrol(); // von loopcontrol
+//   controllooperrcounterA = currentcontrolstatus;
    if (currentcontrolstatus == 16) // 16, voltage control
    {
       currentstatus &= ~(1<<CURRENTWARNUNG); // Warnung off
       since_WARN=0;
-      
-      if (currentcontrol_level == 0) // Aenderung: war bisher null
-      {
-         currentstatus &= ~(1<<CURRENTWARNUNG); // Warnung off
-         //
-         //tone(TONE,400,300);
-      }
-   }
+      regA &= ~(1<< LED_I_WARRN);
+    }
    else // current control
    {
       if (!(currentstatus & (1<<CURRENTWARNUNG)))
       {
          since_WARN=0;
+         currentcontrolcounter = 0;
+         currentstatus |= (1<<CURRENTWARNUNG); // Warnung on
       }
-      currentstatus |= (1<<CURRENTWARNUNG); // Warnung on
-      currentcontrolcounter = 0;
-      
    }
-   
-   controllooperrcounterB = currentstatus;
-   
-   controllooperrcounterC = currentcontrolcounter;
-   if (currentstatus & (1<<CURRENTWARNUNG))
+    if (currentstatus & (1<<CURRENTWARNUNG))
    {
       
       if (since_WARN > CURRENTWARNUNG_DELAY) // Delay abgelaufen. Ton
       {
-         since_WARN = 0;
-         currentcontrolcounter++;
+         since_WARN = 0;         
          if (currentcontrolcounter < CURRENTWARNUNG_ANZAHL)
          {
-   //         tone(TONE,400,300);
+            currentcontrolcounter++;
+            tone(TONE,400,300);
+         
          }
          else
          {
-            currentstatus &= ~(1<<CURRENTWARNUNG); // Warnung off
-            currentcontrolcounter = 0;
+            //currentstatus &= ~(1<<CURRENTWARNUNG); // Warnung off
+            //currentcontrolcounter = 0;
          }
-         
+         // LED_I_WARRN
+         regA ^= (1<< LED_I_WARRN);
       }
     }
+   // end Stromwarnung
    
    if (sinceblink > 10) 
    {  
@@ -1006,7 +997,7 @@ void loop()
    {
   //    lcd_gotoxy(19,1);
   //    lcd_putc('C');
-      loopcontrol |= (1<<6);
+  //    loopcontrol |= (1<<6);
       if (bereichpos )
       {
          bereichpos--;
@@ -1020,7 +1011,7 @@ void loop()
       {
          bereichpos++;
       }
-      loopcontrol |= (1<<7);
+ //     loopcontrol |= (1<<7);
   //    lcd_gotoxy(19,1);
 //   lcd_putc('D');
       tastenstatusarray[BEREICH_DOWN].pressed = 0;
@@ -1094,7 +1085,7 @@ void loop()
    //lcd_putint12(get_dacval());
    lcd_putint12(potential);
 
-   loopcontrol = 0;
+//   loopcontrol = 0;
     
 } // end sincelcd
 
