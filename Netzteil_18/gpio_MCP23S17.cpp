@@ -9,7 +9,8 @@
 
 
 
-gpio_MCP23S17::gpio_MCP23S17(){
+gpio_MCP23S17::gpio_MCP23S17()
+{
 
 }
 

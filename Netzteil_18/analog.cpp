@@ -24,6 +24,10 @@ extern  int readPin;
 extern int U_Pot;
 extern volatile int16_t analog_result[2]; 
 
+
+extern volatile uint8_t loopcontrol;
+
+
 //ADC::Sync_result result;
 
 //debug LED:
@@ -53,8 +57,8 @@ void init_analog(void)
 {
  	analog_result[0]=50; // I
 	analog_result[1]=2000;  // U
-	target_val[0]=100; // initialize to zero, I, kein Strom
-	target_val[1]=2000; // initialize to 5000, U
+	target_val[0]=0; // initialize to zero, I, kein Strom
+	target_val[1]=0; // initialize to 5000, U
    analogWriteFrequency(4, 375000);
    
    adc->adc0->setAveraging(2); // set number of averages
@@ -107,10 +111,10 @@ void adc0_isr(void)
    result = adc->readSynchronizedContinuous();
    
    //analog_result[0] = adc->analogReadContinuous(ADC_0);// I
-   analog_result[0] = (uint16_t)result.result_adc0;// I
+   analog_result[0] = (uint16_t)result.result_adc0; // I
    
    //analog_result[1] = adc->analogReadContinuous(ADC_1);// U
-   analog_result[1] = (uint16_t)result.result_adc1;;// U
+   analog_result[1] = (uint16_t)result.result_adc1; // U
    
    //U_Pot = adc->analogRead(A9,ADC_0);
    val = analog_result[1]; // U
@@ -119,7 +123,7 @@ void adc0_isr(void)
    outbuffer[2] = val & 0x00FF;
    //digitalWriteFast(OSZIA,LOW);
   /*
-   if (analog_result[0] > SH_CIR_PROT)
+   if (analog_result[0] > SH_CIR_PROT_3)
    {
       dac_val=400;
       //dac(dac_val);
@@ -197,7 +201,7 @@ void inc_targetvalue(uint8_t channel, uint16_t inc) // targetvalue incrementiere
 
 void dec_targetvalue(uint8_t channel, uint16_t dec) // targetvalue decrementieren um dec
 {
-   if (target_val[channel] > (0x0F))
+   if (target_val[channel] > (0x0A))
    {
       target_val[channel] -= dec;
    }
@@ -283,7 +287,7 @@ static void  control_loop()
    
    analogWrite(A14, (int)dac_val);
 }
-     
+  
 uint16_t readPot(uint8_t pin)
 {
    return adc->analogRead(pin);
@@ -303,7 +307,7 @@ int16_t adc_u_to_disp(int16_t adcunits)
    }
 //   adcunits=adcunits-adcdrop;
    
-   return((int16_t)((((float)adcunits /409.6)* ADC_REF * U_DIVIDER)+0.5)); // Umrechnen 12bit
+   return((int16_t)((((float)adcunits * 10 /409.6)* ADC_REF * U_DIVIDER)+0.5)); // Umrechnen 12bit
 }
 
 // Convert an integer which is representing a float into a string.
@@ -320,19 +324,21 @@ int16_t adc_u_to_disp(int16_t adcunits)
 void int_to_dispstr(uint16_t inum,char *outbuf,int8_t decimalpoint_pos)
 {
    int8_t i,j;
-   char chbuf[8];
+   char chbuf[10];
    itoa(inum,chbuf,10); // convert integer to string
    i=strlen(chbuf);
-   if (i>3) i=3; //overflow protection
+   if (i>4) i=4; //overflow protection
    strcpy(outbuf,"   0"); //decimalpoint_pos==0
    if (decimalpoint_pos==1) strcpy(outbuf," 0.0");
    if (decimalpoint_pos==2) strcpy(outbuf,"0.00");
-   j=4;
-   while(i){
+   j=5;
+   while(i)
+   {
       outbuf[j-1]=chbuf[i-1];
       i--;
       j--;
-      if (j==4-decimalpoint_pos){
+      if (j==5-decimalpoint_pos)
+      {
          // jump over the pre-set dot
          j--;
       }
@@ -395,7 +401,7 @@ ISR(ADC_vect)
 	// short circuit protection does not use the over sampling results
 	// for speed reasons.
 	// short circuit protection, current is 10bit ADC
-	if (channel==0 && currentadc > SH_CIR_PROT)
+	if (channel==0 && currentadc > SH_CIR_PROT_3)
    {
 		dac_val=400;
 		//dac(dac_val);

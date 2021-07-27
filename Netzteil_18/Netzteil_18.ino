@@ -8,40 +8,40 @@
 
 
 ///
-/// @mainpage	Netzteil_18
+/// @mainpage   Netzteil_18
 ///
-/// @details	Description of the project
+/// @details   Description of the project
 /// @n
 /// @n
-/// @n @a		Developed with [embedXcode+](http://embedXcode.weebly.com)
+/// @n @a      Developed with [embedXcode+](http://embedXcode.weebly.com)
 ///
-/// @author		Ruedi Heimlicher
-/// @author		Ruedi Heimlicher
-/// @date		24.11.2018 10:37
-/// @version	<#version#>
+/// @author      Ruedi Heimlicher
+/// @author      Ruedi Heimlicher
+/// @date      24.11.2018 10:37
+/// @version   <#version#>
 ///
-/// @copyright	(c) Ruedi Heimlicher, 2018
-/// @copyright	Licence
+/// @copyright   (c) Ruedi Heimlicher, 2018
+/// @copyright   Licence
 ///
-/// @see		ReadMe.txt for references
+/// @see      ReadMe.txt for references
 ///
 
 
 ///
-/// @file		Netzteil_18.ino
-/// @brief		Main sketch
+/// @file      Netzteil_18.ino
+/// @brief      Main sketch
 ///
-/// @details	<#details#>
-/// @n @a		Developed with [embedXcode+](http://embedXcode.weebly.com)
+/// @details   <#details#>
+/// @n @a      Developed with [embedXcode+](http://embedXcode.weebly.com)
 ///
-/// @author		Ruedi Heimlicher
-/// @date		24.11.2018 10:37
-/// @version	<#version#>
+/// @author      Ruedi Heimlicher
+/// @date      24.11.2018 10:37
+/// @version   <#version#>
 ///
-/// @copyright	(c) Ruedi Heimlicher, 2018
-/// @copyright	Licence
+/// @copyright   (c) Ruedi Heimlicher, 2018
+/// @copyright   Licence
 ///
-/// @see		ReadMe.txt for references
+/// @see      ReadMe.txt for references
 /// @n
 ///
 
@@ -252,7 +252,7 @@ unsigned int packetCount = 0;
 
 ///
 /// @brief      Setup
-/// @details	Define the pin the LED is connected to
+/// @details   Define the pin the LED is connected to
 ///
 // Add setup code
 
