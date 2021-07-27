@@ -212,6 +212,20 @@ uint16_t gpio_MCP23S17::readGpioPort()
 	return gpioReadAddress(MCP23S17_GPIO);
 }
 
+uint8_t gpio_MCP23S17::gpioReadPortA()
+{
+   //return (gpioReadAddress(MCP23S17_GPIO) & 0x00FF);
+   _GPIOstartSend(1);
+   SPI.transfer(MCP23S17_GPIO);
+   byte dataA  = SPI.transfer(0x0);
+   _GPIOendSend();
+ //  uint16_t temp = low_byte | (high_byte << 8);
+   return dataA;
+ 
+//   return (gpioReadAddress(MCP23S17_GPIO) & 0x00FF);
+}
+
+
 uint8_t gpio_MCP23S17::gpioReadPortB()
 {
    //return (gpioReadAddress(MCP23S17_GPIO) & 0x00FF);

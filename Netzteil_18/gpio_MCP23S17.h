@@ -137,7 +137,7 @@ public:
 	void 			gpioPort(uint16_t value);					//HIGH=all Hi, LOW=all Low,0xxxx=you choose witch low or hi
 	void			gpioPort(byte lowByte, byte highByte);		//same as abowe but uses 2 separate bytes
    
-   
+   uint8_t     gpioReadPortA();
    uint8_t     gpioReadPortB();
    void        gpioWritePortA(byte data);
    

@@ -57,17 +57,43 @@ void init_analog(void)
 	target_val[1]=2000; // initialize to 5000, U
    analogWriteFrequency(4, 375000);
    
+   adc->adc0->setAveraging(2); // set number of averages
+    adc->adc0->setResolution(12); // set bits of resolution
+    adc->adc0->setConversionSpeed(ADC_CONVERSION_SPEED::LOW_SPEED); // change the conversion speed
+    adc->adc0->setSamplingSpeed(ADC_SAMPLING_SPEED::MED_SPEED); // change the sampling speed
+    adc->adc0->recalibrate();
+   adc->adc0->enableInterrupts(adc0_isr);
+   adc->adc0->startContinuous(ADC_U);
+   
+   
+   adc->adc1->setAveraging(2); // set number of averages
+    adc->adc1->setResolution(12); // set bits of resolution
+    adc->adc1->setConversionSpeed(ADC_CONVERSION_SPEED::LOW_SPEED); // change the conversion speed
+    adc->adc1->setSamplingSpeed(ADC_SAMPLING_SPEED::MED_SPEED); // change the sampling speed
+    adc->adc1->recalibrate();
+    
+   adc->adc1->startContinuous(ADC_I);
+   
+  // adc->startSynchronizedContinuous(ADC_U, ADC_I); // 
+   
+   delay(2000);
+   
+   return;
+   
+   
    adc->setAveraging(2); // set number of averages 
+  
    adc->setResolution(12); // set bits of resolution
    adc->setConversionSpeed(ADC_CONVERSION_SPEED::LOW_SPEED);
    adc->setSamplingSpeed(ADC_SAMPLING_SPEED::MED_SPEED);
    adc->setReference(ADC_REFERENCE::REF_3V3, ADC_0);
    
-   
+    
    adc->enableInterrupts(ADC_0);
-    
-    
+   
+   //return;
    adc->startSynchronizedContinuous(ADC_U, ADC_I); // 
+   
    delay(100);
    
    
@@ -181,81 +207,81 @@ void dec_targetvalue(uint8_t channel, uint16_t dec) // targetvalue decrementiere
 
 static void  control_loop()
 {
- int16_t tmp;
- tmp=target_val[0] - analog_result[0]; // current diff
- if (tmp <0) // current too high
- {
-    // ** current control:
-    //
-    // stay in current control if we are
-    // close to the target. We never regulate
-    // the difference down to zero otherweise
-    // we would suddenly hop to voltage control
-    // and then back to current control. Permanent
-    // hopping would lead to oscillation and current
-    // spikes.
-    if (tmp>-2) 
-    {
-       tmp=0;
-    }
-    
-    currentcontrol=10; // I control
-    if (analog_result[1] > target_val[1])
-    {
-       // oh, voltage too high, get out of current control:
-       tmp = -20;
-       currentcontrol=0; // U control
-    }
- }
- else
- {
-    // ** voltage control:
-    //
-    // if we are in current control then we can only go
-    // down (tmp is negative). To increase the current
-    // we come here to voltage control. We must slowly
-    // count up.
-    tmp=1+ target_val[1]  - analog_result[1]; // voltage diff
-    if (currentcontrol)
-    {
-       currentcontrol--;
-       // do not go up immediately after we came out of current control:
-       if (tmp>0) tmp=0;
-    }
- }
- if (tmp> -3 && tmp<4)
- { // avoid LSB bouncing if we are close
-    tmp=0;
- }
- if (tmp==0) 
- {
-    return; // nothing to change
- }
- // put a cap on increase
- if (tmp>1)
- {
-    tmp=1;
- }
- // put a cap on decrease
- if (tmp<-200)
- {
-    tmp=-20;
- }
- else if (tmp<-1)
- {
-    tmp=-1;
- }
- dac_val+=tmp;
- if (dac_val>0x1000)
- {
-    dac_val=0x1000; //max, 12bit
- }
- if (dac_val<TRANSISTOR_THRESHOLD)
- {  // the output is zero below 800 due to transistor threshold
-    dac_val=TRANSISTOR_THRESHOLD;
- }
- 
- analogWrite(A14, (int)dac_val);
+   int16_t tmp;
+   tmp=target_val[0] - analog_result[0]; // current diff
+   if (tmp <0) // current too high
+   {
+      // ** current control:
+      //
+      // stay in current control if we are
+      // close to the target. We never regulate
+      // the difference down to zero otherweise
+      // we would suddenly hop to voltage control
+      // and then back to current control. Permanent
+      // hopping would lead to oscillation and current
+      // spikes.
+      if (tmp>-2) 
+      {
+         tmp=0;
+      }
+      
+      currentcontrol=10; // I control
+      if (analog_result[1] > target_val[1])
+      {
+         // oh, voltage too high, get out of current control:
+         tmp = -20;
+         currentcontrol=0; // U control
+      }
+   }
+   else
+   {
+      // ** voltage control:
+      //
+      // if we are in current control then we can only go
+      // down (tmp is negative). To increase the current
+      // we come here to voltage control. We must slowly
+      // count up.
+      tmp=1+ target_val[1]  - analog_result[1]; // voltage diff
+      if (currentcontrol)
+      {
+         currentcontrol--;
+         // do not go up immediately after we came out of current control:
+         if (tmp>0) tmp=0;
+      }
+   }
+   if (tmp> -3 && tmp<4)
+   { // avoid LSB bouncing if we are close
+      tmp=0;
+   }
+   if (tmp==0) 
+   {
+      return; // nothing to change
+   }
+   // put a cap on increase
+   if (tmp>1)
+   {
+      tmp=1;
+   }
+   // put a cap on decrease
+   if (tmp<-200)
+   {
+      tmp=-20;
+   }
+   else if (tmp<-1)
+   {
+      tmp=-1;
+   }
+   dac_val+=tmp;
+   if (dac_val>0x1000)
+   {
+      dac_val=0x1000; //max, 12bit
+   }
+   if (dac_val<TRANSISTOR_THRESHOLD)
+   {  // the output is zero below 800 due to transistor threshold
+      dac_val=TRANSISTOR_THRESHOLD;
+   }
+   
+   analogWrite(A14, (int)dac_val);
 }
      
 uint16_t readPot(uint8_t pin)

@@ -64,9 +64,14 @@
 #include "hardware_settings.h"
 // Define structures and classes
 
+
+
 ADC *adc = new ADC(); // adc object
 ADC::Sync_result result;
 IntervalTimer debouncetimer;
+
+IntervalTimer prelltimer;
+
 // Define variables and constants
 ///
 /// @brief      Name of the LED
@@ -79,6 +84,15 @@ volatile uint8_t inbuffer[USB_DATENBREITE]={};
 volatile uint8_t outbuffer[USB_DATENBREITE]={};
 elapsedMillis sinceblink;
 elapsedMillis sinceusb;
+elapsedMillis sincepot; // Zeitdauer der Anzeige des Potentialwertes
+
+
+
+elapsedMillis since_U;  // Zeit Drehgeberimpuls U
+elapsedMillis since_I;  // Zeit Drehgeberimpuls I
+elapsedMillis since_P;  // Zeit Drehgeberimpuls Potential
+
+elapsedMillis since_WARN; // Zeit fuer Warnton
 
 int period = 1000;
 unsigned long time_now = 0;
@@ -87,9 +101,18 @@ int U_soll;
 int I_soll;
 int U_Pot;
 
+#define MAX_U     3200
+#define MAX_I     3200
+#define MAX_POT   3200
+
+
+
 uint16_t input =0;
 
 volatile int16_t analog_result[2]; 
+
+volatile int16_t potential = P_OFFSET;
+
 
 
 int  readPin = A9; // ADC0
@@ -108,8 +131,27 @@ float sinval = 0;
 char buf[21];
 
 // Drehgeber
-uint8_t drehgeber_dir = 0; //Drehrichtung
-volatile uint16_t drehgeber_count = 0;
+
+uint8_t drehgeber0_dir = 0; //Drehrichtung
+volatile uint16_t drehgeber0_count = 0;
+
+uint8_t drehgeber1_dir = 0; //Drehrichtung
+volatile uint16_t drehgeber1_count = 0;
+
+uint8_t drehgeber2_dir = 0; //Drehrichtung
+volatile uint16_t drehgeber2_count = 2000;
+
+volatile uint8_t ausgabestatus = 0; // Anzeige Instrumente: Potential oder Ausgangsspannung, currentlimit oder current
+
+volatile uint16_t U_instrumentcounter = 0; // Counter fuer U-Anzeigezeit
+volatile uint16_t I_instrumentcounter = 0; // Counter fuer I-Anzeigezeit
+
+volatile uint16_t ausgangsspannung = 0;
+
+volatile uint8_t bereichpos = 1;
+
+ADC_ERROR resultat;
+
 uint8_t timercounter=0;
 uint16_t uptaste_history = 0;
 uint16_t downtaste_history = 0;
@@ -119,22 +161,84 @@ volatile uint8_t tipptastenstatus = 0;
 volatile uint8_t SPItastenstatus = 0;
 volatile uint8_t SPIcheck=0;
 
+//volatile uint8_t anzeigestatus = 0;
+#define potential_on  0
+
+
+//
+uint8_t drehgeber_dir = 0; //Drehrichtung
+volatile uint16_t drehgeber_count = 0;
+
+#define I_OUT  23
+#define U_OUT  6
+
+#define CURRENTWARNUNG              1 // Warnton einschalten
+#define CURRENTWARNUNG_ANZAHL       3 // Anz Warntoene
+#define CURRENTWARNUNG_DELAY       1000 // Abstand Warntoene
+
+uint8_t ausgangcheck=0;
+
+uint8_t ausgangramp = 0; // weiches einschalten
+uint16_t lastausgangspannung = 0;
+
 
 typedef struct
 {
    uint8_t pin;
    uint16_t tasten_history;
    uint8_t pressed;
+   long lastDebounceTime;
 }tastenstatus;
+
+//long lastDebounceTime = 0;  // the last time the output pin was toggled
+long debounceDelay = 20;    // the debounce time; increase if the output flickers
 
 tastenstatus tastenstatusarray[8] = {}; 
 
 uint8_t tastenbitstatus = 0; // bits fuer tasten
 
+volatile uint8_t tastencode = 0;
+
+
+// Start gannsle
+// http://www.ganssle.com/debouncing-pt2.htm
+#define MAX_CHECKS 8
+volatile uint8_t last_debounced_state = 0;
+volatile uint8_t debounced_state = 0;
+volatile uint8_t state[MAX_CHECKS] = {0};
+
+volatile uint8_t debounceindex = 0;
+void debounce_switch(uint8_t port)
+{
+   uint8_t i,j;
+   state[debounceindex] = port;
+   ++debounceindex;
+   j = 0xFF;
+   for (i=0;i<MAX_CHECKS;i++)
+   {
+      j=j & state[i];
+   }
+   debounced_state = j;
+   
+   if (debounceindex >= MAX_CHECKS)
+   {
+      debounceindex = 0;
+   }
+   
+}
+
+// end ganssle
+
+float I_korr_array[5] = {I_KORR_0,I_KORR_1,I_KORR_2,I_KORR_3,I_KORR_4};
+char* I_einheit[] = {"mA","A"};
+
+
 gpio_MCP23S17 mcp0(10,0x20);//instance 0 (address A0,A1,A2 tied to 0)
 gpio_MCP23S17 mcp1(10,0x21);//instance 1 (address A0 to +, A1,A2 tied to 0)
 uint8_t regA = 0x01;
 uint8_t regB = 0;
+
+
 
 
 // Prototypes
@@ -261,9 +365,202 @@ void debounce_ISR(void)
    uint8_t old_tipptastenstatus = tipptastenstatus;
    //tipptastenstatus = checktasten();
    SPIcheck  = checkSPItasten(); 
-    digitalWriteFast(OSZIA,HIGH);
+   digitalWriteFast(OSZIA,HIGH);
+   analogWrite(I_OUT, get_analogresult(0));
+   analogWrite(U_OUT, get_analogresult(1));
+   
 }
 
+
+
+void prellcheck(void) // 30us debounce mit ganssle-funktion
+{
+   //digitalWriteFast(OSZIB,LOW);
+      
+    
+   // MCP lesen
+   
+   regB = bereichpos;
+//   digitalWriteFast(OSZIB,LOW);
+   uint8_t regBB = (regB & 0x07)<< 5;
+   mcp0.gpioWritePortA((regA | regBB)); // output
+  //digitalWriteFast(OSZIB,HIGH);
+   tastencode = 0xFF-mcp0.gpioReadPortB(); // input 8us . PORTB invertieren, 1 ist aktiv
+    //digitalWriteFast(OSZIB,HIGH);
+   
+   //controllooperrcounterA =tastencode; //(1<<tastenstatusarray[2].pin) | (1<<tastenstatusarray[5].pin);
+   
+   //digitalWriteFast(OSZIB,LOW);
+   
+   //debounce_switch(tastencode); // 6us
+   debounced_state = checkSPItasten();
+   
+   //mcp0.gpioWritePortA((regA | regBB)); // output
+   
+   //controllooperrcounterB = debounced_state;
+      
+   // test: Ausgang immer ON
+   /*
+   ausgangsspannung = get_targetvalue(1);
+   ausgabestatus |= (1<<AUSGANG_BIT);
+   ausgabestatus &= ~(1 << POTENTIAL_BIT);
+   digitalWriteFast(OSZIB,HIGH);
+    */
+   // end test
+   //   controllooperrcounterC = ausgabestatus;
+   // Steuerung Anzeigeinstrumente   
+   
+  // Strom
+   // since_I = 0; // Anzeigezeit resetten
+   
+
+   if (ausgabestatus & (1 << STROM_SETTING_BIT))
+   {
+      if (since_I < STROM_SETTING_ZEIT) //Strom-Setting anzeigen
+      {
+         analogWrite(I_OUT, get_targetvalue(0)* I_korr_array[bereichpos]); // Setting-Strom anzeigen)
+      }
+      else 
+      {
+         since_I = 0;// Anzeigezeit beenden
+         // Instrumente dauernd anzeigen
+         ausgabestatus &= ~(1 << STROM_SETTING_BIT); // Anzeige Setting beenden
+         
+      }
+   }
+   else // Ausgangsstrom anzeigen
+   {
+      since_I = 0;// Anzeigezeit beenden
+      analogWrite(I_OUT, get_analogresult(0)* I_korr_array[bereichpos]); // IST-Strom anzeigen)
+   }
+   
+   // Potential
+   if (ausgabestatus & (1 << POTENTIAL_BIT))
+   {
+      if(since_P < POTENTIAL_ZEIT)
+      {
+         // analogWrite(U_OUT, potential  * U_KORR); // Potential auf Instrument anzeigen
+         analogWrite(U_OUT, (P_OFFSET + (potential - P_OFFSET)* P_INSTRUMENTKORR) * U_KORR); // Potential auf Instrument anzeigen
+      }
+      else
+      {
+         since_P = 0; // Anzeigezeit beenden
+         ausgabestatus &= ~(1 << POTENTIAL_BIT); // 
+      }
+   }
+   else // Ausgangsspannung anzeigen
+   {
+      since_P = 0; // Potential anzeigen unterdrücken
+      if (ausgabestatus & (1<<AUSGANG_BIT))
+      {
+         
+         if (ausgangramp) // einschaltverzögerung
+         {
+            ausgangramp--;
+         }
+         else
+          
+         {
+         analogWrite(U_OUT, get_analogresult(1) * U_KORR); // IST-Spannung
+         }
+      }
+      else
+      {
+         analogWrite(U_OUT, get_targetvalue(1)* U_KORR); // SOLL-Spannung
+      }
+   }
+   
+   //analogWrite(U_OUT, get_analogresult(1) * U_KORR); // Analog-Spannung anzeigen
+   
+   analogWrite(POTENTIAL_OUT,(P_OBERGRENZE - potential) * P_KORR); // Potentialausgang an Buchse ausgeben
+   
+  // digitalWriteFast(OSZIB,HIGH);
+
+}
+
+
+
+#pragma mark prell_ISR
+void prell_ISR(void)
+{   
+   //prellcounter++;
+   
+   ausgangsspannung = get_targetvalue(1);
+ //  ausgabestatus |= (1<<AUSGANG_BIT);
+  // ausgabestatus &= ~(1 << POTENTIAL_BIT);
+   adc->startSynchronizedSingleRead(ADC_U, ADC_I); // 3 us
+   
+   if (abs(lastausgangspannung - get_analogresult(1)) > 500) // fehler
+   {
+      ausgangcheck++;
+      lastausgangspannung = get_analogresult(1);
+   }
+
+  }
+
+void DREHGEBER0_ISR(void) // I
+{
+   //digitalWriteFast(OSZIA,LOW);
+   if (digitalReadFast(DREHGEBER0_B) == 0) //  Impuls B ist 0,  kommt spaeter: RI A
+   {
+      inc_targetvalue(0, 10);
+   }
+   else // //  Impuls B ist 1,  war frueher:RI B
+   {
+       dec_targetvalue(0, 10);
+   }
+   
+   since_I = 0; // Anzeigezeit resetten
+   ausgabestatus |= (1 << STROM_SETTING_BIT); // Auf Instrument_I_Setting anzeigen. Wird in debounce_ISR gecheckt
+   //digitalWriteFast(OSZIA,HIGH);
+}
+
+void DREHGEBER1_ISR(void) // U
+{
+   //digitalWriteFast(OSZIA,LOW);
+   if (digitalReadFast(DREHGEBER1_B) == 0) //  Impuls B ist 0,  kommt spaeter: RI A
+   {
+       inc_targetvalue(1, 10);
+   }
+   else // //  Impuls B ist 1,  war frueher:RI B
+   {
+       dec_targetvalue(1, 10);
+   }
+   //digitalWriteFast(OSZIA,HIGH);
+   //ausgangsspannung = get_targetvalue(1);
+}
+
+void DREHGEBER2_ISR(void) // P wird geaendert
+{
+   //digitalWriteFast(OSZIA,LOW);
+   if (digitalReadFast(DREHGEBER2_B) == 0) //  Impuls B ist 0,  kommt spaeter: RI A
+   {
+       if (potential < MAX_POT - 20)
+      {
+         potential += 20;
+      }
+   }
+   else // //  Impuls B ist 1,  war frueher:RI B
+   {
+      if (potential > 20)
+      {
+         potential -= 20;
+      }
+      else
+      {
+         potential = 0;
+      }
+   }
+   //controllooperrcounterC++;;
+   since_P = 0; // Anzeigezeit resetten, 
+   U_instrumentcounter = 0; // Anzeigezeit reset Anzeigezeit auf 0 setzen, wird in 
+   ausgabestatus |= (1 << POTENTIAL_BIT); // Auf Instrument_U Potential anzeigen. Wird in debounce_ISR gecheckt
+   //digitalWriteFast(OSZIA,HIGH);
+
+}
+
+
+/*
 void drehgeber_ISR(void)
 {
    //digitalWriteFast(OSZIA,LOW);
@@ -273,7 +570,9 @@ void drehgeber_ISR(void)
       {
          drehgeber_dir = 0;
          drehgeber_count += 10;
+         Serial.println("up");
       }
+      
       inc_targetvalue(1, 16);
    }
    else // //  Impuls B ist 1,  war frueher:RI B
@@ -282,21 +581,24 @@ void drehgeber_ISR(void)
       {
          drehgeber_dir = 1;
          drehgeber_count -= 10;
+         Serial.println("down");
       }
+      
       dec_targetvalue(1, 16);
    }
    //digitalWriteFast(OSZIA,HIGH);
 }
 
-
+*/
 
 void setup()
 {
-   Serial.begin(38400);
-   // !!! Help: http://bit.ly/2l2pqAL
+   Serial.begin(9600);
    pinMode(OSZIA,OUTPUT);
-   digitalWriteFast(OSZIA,HIGH);
-   loopLED = 8;
+   digitalWriteFast(OSZIA,HIGH); // setup
+   pinMode(OSZIB,OUTPUT);
+   digitalWriteFast(OSZIB,HIGH); // setup
+   loopLED = 18;
    // LCD
    pinMode(LCD_RSDS_PIN, OUTPUT);
    pinMode(LCD_ENABLE_PIN, OUTPUT);
@@ -308,18 +610,32 @@ void setup()
    analogReadResolution(12);
    analogWriteResolution(12);
    
-   // example
-   pinMode(readPin, INPUT);
-   pinMode(readPin2, INPUT);
-   
-   pinMode(readPin3, INPUT);
-   
-   //pinMode(9, INPUT);
    
    // Drehgeber
-   pinMode(DREHGEBER_A,INPUT); // Kanal A
-   attachInterrupt(DREHGEBER_A, drehgeber_ISR, FALLING); //
-   pinMode(DREHGEBER_B,INPUT); // Kanal B
+   pinMode(DREHGEBER0_A,INPUT); // Kanal A
+   pinMode(DREHGEBER0_A,INPUT_PULLUP); // HI
+   attachInterrupt(DREHGEBER0_A, DREHGEBER0_ISR, FALLING); //
+   pinMode(DREHGEBER0_B,INPUT); // Kanal B
+   pinMode(DREHGEBER0_B,INPUT_PULLUP); // HI
+   
+   
+   pinMode(DREHGEBER1_A,INPUT); // Kanal A
+   pinMode(DREHGEBER1_A,INPUT_PULLUP); // HI
+   attachInterrupt(DREHGEBER1_A, DREHGEBER1_ISR, FALLING); //
+   pinMode(DREHGEBER1_B,INPUT); // Kanal B
+   pinMode(DREHGEBER1_B,INPUT_PULLUP); // HI
+
+      
+   pinMode(DREHGEBER2_A,INPUT); // Kanal A
+   pinMode(DREHGEBER2_A,INPUT_PULLUP); // HI
+   attachInterrupt(DREHGEBER2_A, DREHGEBER2_ISR, FALLING); //
+   pinMode(DREHGEBER2_B,INPUT); // Kanal B
+   pinMode(DREHGEBER2_B,INPUT_PULLUP); // HI
+
+   pinMode(TONE, OUTPUT);
+   
+   pinMode(POTENTIAL_OUT, OUTPUT);
+   
    
    // debounce
    
@@ -329,21 +645,40 @@ void setup()
       tastenstatusarray[i].pressed = 0;
       tastenstatusarray[i].pin = 0xFF;
    }
-   tastenstatusarray[0].pin = 5;
-   pinMode(5,INPUT); // Taste
-   tastenstatusarray[1].pin = 6;
-   pinMode(6,INPUT); // Taste
-   tastenstatusarray[2].pin = 2;
-  // pinMode(2,INPUT); // Taste
+   
+   // Tasten
+   /*
+    // Taster
+    
+    // Umschalter Bereich
+    #define BEREICH_UP      2
+    #define BEREICH_DOWN    3
+    
+    // ON OFF 
+    #define OUT_ON          4
+    #define OUT_OFF         5
+    
+    #define LCD_RESET       0
+    #define SAVE            1
+    */
+   tastenstatusarray[0].pin = LCD_RESET;
+   tastenstatusarray[1].pin = SAVE;
+   
+   tastenstatusarray[2].pin = BEREICH_UP;
+   tastenstatusarray[3].pin = BEREICH_DOWN;
+
+   tastenstatusarray[4].pin = OUT_ON;
+   tastenstatusarray[5].pin = OUT_OFF;
 
    //
    
    // SPI
     
-   lcd_initialize(LCD_FUNCTION_8x2, LCD_CMD_ENTRY_INC, LCD_CMD_ON);
    
-   _delay_ms(100);
-   lcd_puts("Teensy");
+   pinMode(U_OUT,OUTPUT);
+   analogWriteFrequency(U_OUT, 10000);
+   
+
    
    init_analog(); 
    
@@ -360,10 +695,20 @@ void setup()
    mcp0.portPullup(0x00FF);
    mcp0.gpioPort(0xFFFF);
    
-   debouncetimer.begin(debounce_ISR,1000);
+   prelltimer.priority(0);
+   prelltimer.begin(prell_ISR,40);
   
+   U_soll = U_START;//  10V
+   set_target_adc_val(1,U_soll);
    
+   I_soll = I_START; // 100mA
+
+   set_target_adc_val(0,I_soll);
    
+   lcd_initialize(LCD_FUNCTION_8x2, LCD_CMD_ENTRY_INC, LCD_CMD_ON);
+   _delay_ms(100);
+   lcd_puts("Teensy");
+
 }
 void loop()
 {
@@ -383,6 +728,8 @@ void loop()
    //   Serial.println(val);
       //mcp0.gpioPort(0xFFFF);
       // end sine wave
+      
+ //     tone(TONE,400,300);
       if (digitalRead(loopLED) == 1)
       {
          //Serial.printf("LED ON\n");
@@ -475,14 +822,14 @@ void loop()
       
        
       //`
-      adc->printError();
-      adc->resetError();
+      //adc->printError();
+      //adc->resetError();
       
       n = RawHID.send((void*)outbuffer, 100);
      
       if (n > 0) 
       {
-         Serial.print(F("Transmit packet "));
+         //Serial.print(F("Transmit packet "));
       } 
       else 
       {
@@ -490,7 +837,7 @@ void loop()
       }
       
       int outcontrol = (outbuffer[1]<<8) + outbuffer[2];
-      Serial.printf("outH: %02X outL: %02X wert: \t%d\n",outbuffer[1],outbuffer[2],outcontrol);
+ //     Serial.printf("outH: %02X outL: %02X wert: \t%d\n",outbuffer[1],outbuffer[2],outcontrol);
       
       packetCount = packetCount + 1;
       /*
@@ -513,7 +860,16 @@ void loop()
        
        
        */
+      uint16_t temp = 0;
       
+    //  adc->disableInterrupts(ADC_0);
+    //  adc->disableInterrupts(ADC_1);
+   //   temp = analogRead(9);
+   //   adc->enableInterrupts(ADC_0);
+   //   adc->enableInterrupts(ADC_1);
+      
+  //    lcd_gotoxy(2,2);
+  //    lcd_putint12(temp);
 #pragma mark debounce
       lcd_gotoxy(12,1);
       lcd_puthex(SPItastenstatus);
@@ -562,7 +918,7 @@ void loop()
       //lcd_putint1(drehgeber_dir);
      // if ((timercounter % 1000) == 0)
       {
-         lcd_putc(' ');
+        // lcd_putc(' ');
          
       }
       
